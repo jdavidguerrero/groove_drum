@@ -27,8 +27,8 @@
 #define PAD2_ADC_PIN 6    // ADC1_CH5 - HiHat
 #define PAD3_ADC_PIN 7    // ADC1_CH6 - Tom
 
-const int PAD_ADC_PINS[4] = {PAD0_ADC_PIN, PAD1_ADC_PIN, PAD2_ADC_PIN, PAD3_ADC_PIN};
-const char* PAD_NAMES[4] = {"Kick", "Snare", "HiHat", "Tom"};
+extern const int PAD_ADC_PINS[4];
+extern const char* PAD_NAMES[4];
 
 // I2S Audio Output (PCM5102 DAC)
 #define I2S_BCLK_PIN 26
@@ -64,12 +64,12 @@ const char* PAD_NAMES[4] = {"Kick", "Snare", "HiHat", "Tom"};
 
 // LED Outputs
 #define LED_PADS_PIN      48  // WS2812B x4 (one per pad)
-#define LED_ENC_DATA_PIN  47  // SK9822 Data (2 rings x 8 LEDs each)
+#define LED_ENC_DATA_PIN  47  // SK9822 Data (2 rings x 12 LEDs each)
 #define LED_ENC_CLK_PIN   21  // SK9822 Clock
 
 #define NUM_LEDS_PADS      4
-#define NUM_LEDS_ENCODERS  16  // 2 rings x 8 LEDs each
-#define LEDS_PER_ENCODER   8   // LEDs per encoder ring
+#define NUM_LEDS_ENCODERS  24  // 2 rings x 12 LEDs each
+#define LEDS_PER_ENCODER   12  // LEDs per encoder ring
 
 // UART Communication to MCU #2
 #define UART_TX_PIN 43
@@ -109,61 +109,38 @@ const char* PAD_NAMES[4] = {"Kick", "Snare", "HiHat", "Tom"};
 // ============================================================
 // TRIGGER DETECTION ALGORITHM PARAMETERS
 // ============================================================
-
-// Threshold Detection
-#define TRIGGER_THRESHOLD_MIN 50      // Minimum ADC units above baseline to detect hit
-#define TRIGGER_THRESHOLD_MAX 4000    // Maximum expected ADC value (safety clamp)
-
-// Peak Detection Window
-#define TRIGGER_SCAN_TIME_US 2000     // Time window to find peak after threshold (microseconds)
-
-// Retrigger Suppression
-#define TRIGGER_MASK_TIME_US 10000           // Mask time after hit detection (10ms)
-#define TRIGGER_RETRIGGER_THRESHOLD 30       // Signal must drop below this to re-arm
-
-// Crosstalk Rejection
-#define TRIGGER_CROSSTALK_WINDOW_US 1000    // Time window to check for crosstalk (1ms)
-#define TRIGGER_CROSSTALK_RATIO 0.6f        // Velocity ratio threshold for crosstalk
-
-// Baseline Tracking (for DC offset compensation)
-#define BASELINE_UPDATE_WEIGHT 1024     // Exponential moving average weight (1/1024)
-#define BASELINE_INITIAL_VALUE 0        // Initial baseline value
+// NOTE: Most trigger parameters are now configured per-pad via PadConfigManager
+// See: shared/config/pad_config.h for dynamic configuration system
+// The following are only hardware-level constants and fallback values
 
 // ADC Configuration
 #define ADC_RESOLUTION 12               // 12-bit ADC (0-4095)
 #define ADC_MAX_VALUE 4095
 #define ADC_ATTENUATION ADC_11db        // 0-2.45V usable range
 
-// Scan Rate
+// Scan Rate (hardware timer configuration)
 #define SCAN_PERIOD_US 500              // 500µs = 2kHz scan rate
 #define SCAN_RATE_HZ 2000
 
-// ============================================================
-// VELOCITY CURVE CONFIGURATION
-// ============================================================
+// Baseline Tracking (for DC offset compensation)
+#define BASELINE_UPDATE_WEIGHT 1024     // Exponential moving average weight (1/1024)
+#define BASELINE_INITIAL_VALUE 150      // Initial baseline value
 
-// Velocity curve exponent (0.5 = square root, natural drum feel)
-// Lower = more compression (easier to reach high velocities)
-// Higher = more expansion (harder to reach high velocities)
-#define VELOCITY_CURVE_EXPONENT 0.5f
+// Legacy trigger parameters (for backward compatibility with old detector code)
+#define TRIGGER_SCAN_TIME_US 2000       // Peak detection window (2ms)
+#define TRIGGER_MASK_TIME_US 10000      // Retrigger suppression (10ms)
+#define TRIGGER_RETRIGGER_THRESHOLD 30  // Signal must drop below this to re-arm
+#define TRIGGER_CROSSTALK_WINDOW_US 50000  // Crosstalk check window (50ms)
+#define TRIGGER_CROSSTALK_RATIO 0.7f    // Velocity ratio for crosstalk rejection
+#define VELOCITY_CURVE_EXPONENT 0.5f    // Velocity curve exponent (sqrt)
 
-// Per-pad calibration: Min/Max peak values for velocity mapping
-// These should be calibrated for your specific piezo sensors
-// Min = lightest tap you want to register
-// Max = hardest hit you expect
-const uint16_t VELOCITY_MIN_PEAK[4] = {
-    100,  // Pad 0 (Kick)
-    100,  // Pad 1 (Snare)
-    80,   // Pad 2 (HiHat) - typically more sensitive
-    100   // Pad 3 (Tom)
-};
-
-const uint16_t VELOCITY_MAX_PEAK[4] = {
-    3500,  // Pad 0 (Kick)
-    3500,  // Pad 1 (Snare)
-    3000,  // Pad 2 (HiHat)
-    3500   // Pad 3 (Tom)
-};
+// DEPRECATED: Legacy arrays below are kept for backward compatibility only
+// New code should use PadConfigManager::getConfig(padId) instead
+extern const uint16_t TRIGGER_THRESHOLD_PER_PAD[4];  // Use cfg.threshold
+extern const uint16_t VELOCITY_MIN_PEAK[4];          // Use cfg.velocityMin
+extern const uint16_t VELOCITY_MAX_PEAK[4];          // Use cfg.velocityMax
+extern const uint8_t PAD_MIDI_NOTES[4];              // Use cfg.midiNote
+extern const CRGB PAD_LED_COLORS[4];                 // Use cfg.ledColorHit
 
 // ============================================================
 // MIDI CONFIGURATION
@@ -171,14 +148,6 @@ const uint16_t VELOCITY_MAX_PEAK[4] = {
 
 // Default MIDI channel (9 = channel 10 in 1-based, standard drum channel)
 #define DEFAULT_MIDI_CHANNEL 9
-
-// MIDI note assignments per pad (General MIDI Drum Map)
-const uint8_t PAD_MIDI_NOTES[4] = {
-    36,  // Pad 0: Kick (C1 / Bass Drum 1)
-    38,  // Pad 1: Snare (D1 / Acoustic Snare)
-    42,  // Pad 2: HiHat (F#1 / Closed Hi-Hat)
-    48   // Pad 3: Tom (C2 / Hi-Mid Tom)
-};
 
 // MIDI velocity range (1-127, 0 reserved for note-off)
 #define MIDI_VELOCITY_MIN 1
@@ -190,14 +159,6 @@ const uint8_t PAD_MIDI_NOTES[4] = {
 // ============================================================
 // LED ANIMATION CONFIGURATION
 // ============================================================
-
-// Pad LED Colors (WS2812B)
-const CRGB PAD_LED_COLORS[4] = {
-    CRGB::Red,      // Pad 0: Kick
-    CRGB::Blue,     // Pad 1: Snare
-    CRGB::Yellow,   // Pad 2: HiHat
-    CRGB::Green     // Pad 3: Tom
-};
 
 // Pad LED Idle Brightness (0-255)
 #define PAD_LED_IDLE_BRIGHTNESS 30

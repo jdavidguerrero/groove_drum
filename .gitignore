@@ -41,3 +41,7 @@
 *.dwo
 
 *.pio
+
+*.claude
+
+*.vscode

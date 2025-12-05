@@ -18,7 +18,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "../../shared/config/edrum_config.h"
+#include <edrum_config.h>
 #include "trigger_detector.h"
 
 // ============================================================
@@ -91,12 +91,22 @@ private:
 extern TriggerScanner triggerScanner;
 
 // ============================================================
-// FREERTOS TASK FUNCTION
+// SCANNER CONTROL FUNCTIONS
 // ============================================================
 
 /**
- * @brief FreeRTOS task function for trigger scanning
- * Runs on Core 0 with highest priority
- * @param parameter Pointer to task parameters (unused)
+ * @brief Start high-precision scanner using esp_timer (2kHz exact)
+ * Replaces FreeRTOS task for better timing precision
  */
-void triggerScanTask(void* parameter);
+void startTriggerScanner();
+
+/**
+ * @brief Stop the trigger scanner
+ */
+void stopTriggerScanner();
+
+/**
+ * @brief Get number of missed deadlines (execution > 500µs)
+ * @return Count of times scanner exceeded target period
+ */
+uint32_t getMissedDeadlines();

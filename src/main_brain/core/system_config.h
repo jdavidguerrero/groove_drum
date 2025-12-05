@@ -15,7 +15,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "../../shared/config/edrum_config.h"
+#include <edrum_config.h>
 
 // ============================================================
 // SYSTEM INITIALIZATION

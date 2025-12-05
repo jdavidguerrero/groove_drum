@@ -1,15 +1,22 @@
 /**
  * @file trigger_scanner.cpp
- * @brief Implementation of ADC trigger scanner
- * @version 1.0
- * @date 2025-12-02
+ * @brief Implementation of ADC trigger scanner with esp_timer (2kHz precision)
+ * @version 2.0
+ * @date 2025-12-04
  */
 
 #include "trigger_scanner.h"
-#include "../core/system_config.h"
+#include <esp_timer.h>
+
+// Forward declaration of safety check function (defined in main app)
+void checkADCSafety(uint16_t value, uint8_t padId);
 
 // Global instance
 TriggerScanner triggerScanner;
+
+// esp_timer handle for high-precision scanning
+static esp_timer_handle_t scanTimer = nullptr;
+static volatile uint32_t missedDeadlines = 0;
 
 // ============================================================
 // CONSTRUCTOR
@@ -137,14 +144,14 @@ void TriggerScanner::printStats() {
     getStats(avgUs, maxUs, minUs);
 
     Serial.println("--- Trigger Scanner Stats ---");
-    Serial.printf("Total Scans: %lu\n", scanCount);
-    Serial.printf("Avg Scan Time: %lu µs\n", avgUs);
-    Serial.printf("Max Scan Time: %lu µs\n", maxUs);
-    Serial.printf("Min Scan Time: %lu µs\n", minUs);
+    Serial.printf("Total Scans: %u\n", scanCount);
+    Serial.printf("Avg Scan Time: %u µs\n", avgUs);
+    Serial.printf("Max Scan Time: %u µs\n", maxUs);
+    Serial.printf("Min Scan Time: %u µs\n", minUs);
     Serial.printf("Target Period: %d µs\n", SCAN_PERIOD_US);
 
     if (maxUs > SCAN_PERIOD_US) {
-        Serial.printf("[WARNING] Max scan time exceeds target period by %lu µs!\n",
+        Serial.printf("[WARNING] Max scan time exceeds target period by %u µs!\n",
                       maxUs - SCAN_PERIOD_US);
     }
 
@@ -158,22 +165,65 @@ void TriggerScanner::printStats() {
 }
 
 // ============================================================
-// FREERTOS TASK FUNCTION
+// ESP_TIMER CALLBACK (High-Precision 2kHz)
 // ============================================================
 
-void triggerScanTask(void* parameter) {
-    TickType_t lastWakeTime = xTaskGetTickCount();
-    const TickType_t scanPeriodTicks = pdUS_TO_TICKS(SCAN_PERIOD_US);
+static void IRAM_ATTR scanTimerCallback(void* arg) {
+    uint64_t startTime = esp_timer_get_time();
 
-    Serial.println("[triggerScanTask] Started on Core 0");
-    Serial.printf("  Priority: %d\n", uxTaskPriorityGet(NULL));
-    Serial.printf("  Stack: %d bytes\n", TASK_STACK_TRIGGER_SCAN);
+    // Execute scan loop
+    triggerScanner.scanLoop();
 
-    while (true) {
-        // Execute scan loop
-        triggerScanner.scanLoop();
+    // Monitor execution time
+    uint64_t executionTime = esp_timer_get_time() - startTime;
 
-        // Wait until next scan period (maintains precise 2kHz rate)
-        vTaskDelayUntil(&lastWakeTime, scanPeriodTicks);
+    // Check if we exceeded the target period (500µs)
+    if (executionTime > SCAN_PERIOD_US) {
+        missedDeadlines++;
     }
+}
+
+// ============================================================
+// START FUNCTION (replaces FreeRTOS task)
+// ============================================================
+
+void startTriggerScanner() {
+    // Create high-resolution timer
+    esp_timer_create_args_t timerConfig = {
+        .callback = &scanTimerCallback,
+        .arg = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "piezo_scan",
+        .skip_unhandled_events = false
+    };
+
+    esp_err_t err = esp_timer_create(&timerConfig, &scanTimer);
+    if (err != ESP_OK) {
+        Serial.printf("[SCANNER] ERROR: Failed to create timer: %d\n", err);
+        return;
+    }
+
+    // Start periodic timer at 2kHz (500µs)
+    err = esp_timer_start_periodic(scanTimer, SCAN_PERIOD_US);
+    if (err != ESP_OK) {
+        Serial.printf("[SCANNER] ERROR: Failed to start timer: %d\n", err);
+        return;
+    }
+
+    Serial.println("[SCANNER] High-precision scanner started");
+    Serial.printf("  Target frequency: %d Hz\n", SCAN_RATE_HZ);
+    Serial.printf("  Target period: %d µs\n", SCAN_PERIOD_US);
+}
+
+void stopTriggerScanner() {
+    if (scanTimer) {
+        esp_timer_stop(scanTimer);
+        esp_timer_delete(scanTimer);
+        scanTimer = nullptr;
+        Serial.println("[SCANNER] Stopped");
+    }
+}
+
+uint32_t getMissedDeadlines() {
+    return missedDeadlines;
 }

@@ -21,7 +21,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "../../shared/config/edrum_config.h"
+#include <edrum_config.h>
 
 // ============================================================
 // TRIGGER STATE MACHINE
@@ -31,10 +31,10 @@
  * @brief Trigger detection states
  */
 enum TriggerState {
-    IDLE,           // Waiting for threshold crossing
-    RISING,         // Above threshold, seeking peak
-    PEAK_DETECTED,  // Peak found, in retrigger mask window
-    DECAY           // Waiting for signal to drop below retrigger threshold
+    STATE_IDLE,           // Waiting for threshold crossing
+    STATE_RISING,         // Above threshold, seeking peak
+    STATE_PEAK_DETECTED,  // Peak found, in retrigger mask window
+    STATE_DECAY           // Waiting for signal to drop below retrigger threshold
 };
 
 /**
@@ -50,7 +50,7 @@ struct PadState {
     uint32_t risingStartTime; // Timestamp when RISING state started (micros)
 
     PadState() :
-        state(IDLE),
+        state(STATE_IDLE),
         peakValue(0),
         peakTime(0),
         lastHitTime(0),

@@ -30,7 +30,13 @@ void TriggerDetector::begin(QueueHandle_t hitQueue) {
     hitEventQueue = hitQueue;
 
     Serial.println("[TriggerDetector] Initialized");
-    Serial.printf("  Threshold Min: %d\n", TRIGGER_THRESHOLD_MIN);
+    Serial.println("  Per-Pad Thresholds:");
+    for (int i = 0; i < NUM_PADS; i++) {
+        Serial.printf("    %s: %d ADC (%.2fV)\n",
+                      PAD_NAMES[i],
+                      TRIGGER_THRESHOLD_PER_PAD[i],
+                      (TRIGGER_THRESHOLD_PER_PAD[i] * 2.45f) / 4095.0f);
+    }
     Serial.printf("  Scan Time: %d µs\n", TRIGGER_SCAN_TIME_US);
     Serial.printf("  Mask Time: %d µs\n", TRIGGER_MASK_TIME_US);
     Serial.printf("  Crosstalk Window: %d µs\n", TRIGGER_CROSSTALK_WINDOW_US);
@@ -55,22 +61,25 @@ void TriggerDetector::processSample(uint8_t padId, uint16_t rawValue, uint32_t t
 
     // State machine
     switch (pad.state) {
-        case IDLE: {
-            // Waiting for threshold crossing
-            if (signal > TRIGGER_THRESHOLD_MIN) {
+        case STATE_IDLE: {
+            // Waiting for threshold crossing (per-pad threshold)
+            uint16_t threshold = TRIGGER_THRESHOLD_PER_PAD[padId];
+
+            if (signal > threshold) {
                 // Threshold crossed - enter RISING state
-                pad.state = RISING;
+                pad.state = STATE_RISING;
                 pad.peakValue = signal;
                 pad.risingStartTime = timestamp;
 
                 #ifdef DEBUG_TRIGGER_EVENTS
-                Serial.printf("[Pad %d] Threshold crossed: signal=%d\n", padId, signal);
+                Serial.printf("[Pad %d] Threshold crossed: signal=%d (threshold=%d)\n",
+                              padId, signal, threshold);
                 #endif
             }
             break;
         }
 
-        case RISING: {
+        case STATE_RISING: {
             // Seeking peak value within scan time window
 
             // Update peak if signal is still increasing
@@ -85,7 +94,7 @@ void TriggerDetector::processSample(uint8_t padId, uint16_t rawValue, uint32_t t
 
             if (scanTimeExpired || signalDropped) {
                 // Peak found - process hit
-                pad.state = DECAY;  // Enter decay/mask state
+                pad.state = STATE_DECAY;  // Enter decay/mask state
                 pad.peakTime = timestamp;
 
                 // Convert peak to MIDI velocity
@@ -112,7 +121,7 @@ void TriggerDetector::processSample(uint8_t padId, uint16_t rawValue, uint32_t t
             break;
         }
 
-        case DECAY: {
+        case STATE_DECAY: {
             // Mask time - wait for signal to drop and time to pass
 
             uint32_t maskElapsed = timestamp - pad.peakTime;
@@ -121,7 +130,7 @@ void TriggerDetector::processSample(uint8_t padId, uint16_t rawValue, uint32_t t
 
             if (maskTimeExpired && signalLow) {
                 // Re-arm trigger
-                pad.state = IDLE;
+                pad.state = STATE_IDLE;
 
                 #ifdef DEBUG_TRIGGER_EVENTS
                 Serial.printf("[Pad %d] Re-armed\n", padId);
@@ -132,7 +141,7 @@ void TriggerDetector::processSample(uint8_t padId, uint16_t rawValue, uint32_t t
 
         default:
             // Unknown state - reset
-            pad.state = IDLE;
+            pad.state = STATE_IDLE;
             break;
     }
 }
@@ -242,7 +251,7 @@ void TriggerDetector::sendHitEvent(uint8_t padId, uint8_t velocity, uint32_t tim
 // ============================================================
 
 TriggerState TriggerDetector::getState(uint8_t padId) const {
-    if (padId >= NUM_PADS) return IDLE;
+    if (padId >= NUM_PADS) return STATE_IDLE;
     return padStates[padId].state;
 }
 
@@ -279,11 +288,11 @@ void TriggerDetector::printState() const {
 
         const char* stateName;
         switch (pad.state) {
-            case IDLE:          stateName = "IDLE";          break;
-            case RISING:        stateName = "RISING";        break;
-            case PEAK_DETECTED: stateName = "PEAK_DETECTED"; break;
-            case DECAY:         stateName = "DECAY";         break;
-            default:            stateName = "UNKNOWN";       break;
+            case STATE_IDLE:          stateName = "IDLE";          break;
+            case STATE_RISING:        stateName = "RISING";        break;
+            case STATE_PEAK_DETECTED: stateName = "PEAK_DETECTED"; break;
+            case STATE_DECAY:         stateName = "DECAY";         break;
+            default:                  stateName = "UNKNOWN";       break;
         }
 
         Serial.printf("Pad %d (%s):\n", i, PAD_NAMES[i]);
