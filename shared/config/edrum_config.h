@@ -31,9 +31,9 @@ extern const int PAD_ADC_PINS[4];
 extern const char* PAD_NAMES[4];
 
 // I2S Audio Output (PCM5102 DAC)
-#define I2S_BCLK_PIN 17
-#define I2S_LRCK_PIN 18
-#define I2S_DOUT_PIN 16
+#define I2S_BCLK_PIN 16
+#define I2S_LRCK_PIN 17
+#define I2S_DOUT_PIN 18
 
 // SD Card (SPI Interface)
 #define SD_CS_PIN   10
