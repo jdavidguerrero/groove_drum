@@ -31,36 +31,38 @@ extern const int PAD_ADC_PINS[4];
 extern const char* PAD_NAMES[4];
 
 // I2S Audio Output (PCM5102 DAC)
-#define I2S_BCLK_PIN 26
-#define I2S_LRCK_PIN 25
-#define I2S_DOUT_PIN 27
+#define I2S_BCLK_PIN 17
+#define I2S_LRCK_PIN 18
+#define I2S_DOUT_PIN 16
 
 // SD Card (SPI Interface)
-#define SD_CS_PIN   15
-#define SD_MOSI_PIN 13
-#define SD_MISO_PIN 12
-#define SD_SCK_PIN  14
+#define SD_CS_PIN   10
+#define SD_MOSI_PIN 11
+#define SD_MISO_PIN 13
+#define SD_SCK_PIN  12
 
-// MIDI Output (Hardware UART)
-#define MIDI_TX_PIN 17
+// --- MIDI OUTPUT (Hardware Serial 1) ---
+#define MIDI_TX_PIN 9    
 #define MIDI_BAUD   31250
 
 // Rotary Encoders (ALPS EC11)
-#define ENC_L_A_PIN  35
-#define ENC_L_B_PIN  36
-#define ENC_L_SW_PIN 37
+// Left Encoder
+#define ENC_L_A_PIN  1
+#define ENC_L_B_PIN  2
+#define ENC_L_SW_PIN 42   // MTMS
 
-#define ENC_R_A_PIN  38
-#define ENC_R_B_PIN  39
-#define ENC_R_SW_PIN 40
+// Right Encoder
+#define ENC_R_A_PIN  41   // MTDI
+#define ENC_R_B_PIN  40   // MTDO
+#define ENC_R_SW_PIN 39   // MTCK
 
 // Buttons
-#define BTN_KIT_PIN   1
-#define BTN_EDIT_PIN  2
-#define BTN_MENU_PIN  42
-#define BTN_CLICK_PIN 41
-#define BTN_FX_PIN    40
-#define BTN_SHIFT_PIN 39
+#define BTN_KIT_PIN   3
+#define BTN_EDIT_PIN  8
+#define BTN_MENU_PIN  14
+#define BTN_CLICK_PIN 15
+#define BTN_FX_PIN    38
+#define BTN_SHIFT_PIN 0
 
 // LED Outputs
 #define LED_PADS_PIN      48  // WS2812B x4 (one per pad)
