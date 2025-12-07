@@ -227,21 +227,24 @@ void processHitEvents() {
     while (xQueueReceive(hitEventQueue, &event, 0) == pdTRUE) {
         totalHitsDetected++;
 
+        // Clamp velocity to valid MIDI range (1-127)
+        uint8_t velocity = CLAMP(event.velocity, 1, 127);
+
         // Print hit information
         Serial.printf("🥁 HIT: %s | Velocity=%3d | Baseline=%3d | Total=%u\n",
                       PAD_NAMES[event.padId],
-                      event.velocity,
+                      velocity,
                       triggerDetector.getBaseline(event.padId),
                       totalHitsDetected);
 
         // Send MIDI Note
         uint8_t midiNote = PAD_MIDI_NOTES[event.padId];
-        MIDIController::sendNoteOn(midiNote, event.velocity);
+        MIDIController::sendNoteOn(midiNote, velocity);
 
         // Flash LED con el color asignado al pad (cian/rosa/amarillo/verde)
         CRGB color = PAD_LED_HIT_COLORS[event.padId];
         uint32_t hitColor = ((uint32_t)color.r << 16) | ((uint32_t)color.g << 8) | color.b;
-        uint8_t brightness = map(event.velocity, 0, 127, 100, 255);  // Map velocity to brightness
+        uint8_t brightness = map(velocity, 0, 127, 100, 255);  // Map velocity to brightness
         NeoPixelController::flashPad(event.padId, hitColor, brightness, 300);
 
         // TODO: Play audio sample
