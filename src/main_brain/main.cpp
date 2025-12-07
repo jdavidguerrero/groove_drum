@@ -110,9 +110,9 @@ void checkADCSafety(uint16_t value, uint8_t padId);
 // ============================================================
 
 void setup() {
-    // Initialize Serial
+    // Primero Serial (con CDC_ON_BOOT=1, USB CDC ya está activo)
     Serial.begin(115200);
-    delay(1000);
+    delay(1000);  // Dar tiempo al USB para estabilizarse
 
     Serial.println("\n\n");
     Serial.println("╔═══════════════════════════════════════════════╗");
@@ -123,6 +123,11 @@ void setup() {
     Serial.printf("Build: %s %s\n", __DATE__, __TIME__);
     Serial.printf("Firmware: %s\n", FIRMWARE_VERSION);
     Serial.println();
+
+    // Inicializar USB MIDI (después de que USB esté estable)
+    Serial.println("[MIDI] Initializing USB MIDI...");
+    MIDIController::begin();
+
 
     // Setup hardware
     setupHardware();
@@ -143,9 +148,6 @@ void setup() {
     startTriggerScanner();
     Serial.println("[Scanner] High-precision scanner started (esp_timer @ 2kHz)");
 
-    // Initialize MIDI controller
-    Serial.println("\n[MIDI] Initializing USB MIDI...");
-    MIDIController::begin();
 
     // Initialize NeoPixel LEDs
     Serial.println("\n[LED] Initializing NeoPixels...");
