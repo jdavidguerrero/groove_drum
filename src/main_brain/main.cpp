@@ -26,6 +26,8 @@
 #include "input/trigger_detector.h"
 #include "ui/neopixel_controller.h"
 #include "output/midi_controller.h"
+#include "output/audio_engine.h"
+#include "output/audio_samples.h"
 
 // ============================================================
 // CONFIG ARRAY DEFINITIONS (from edrum_config.h)
@@ -36,60 +38,46 @@ const char* PAD_NAMES[4] = {"Kick", "Snare", "HiHat", "Tom"};
 
 // Threshold por pad - Ajustar según ruido observado de cada piezo
 const uint16_t TRIGGER_THRESHOLD_PER_PAD[4] = {
-    250,  // Pad 0 (Kick)    - Ajustar si hay falsos positivos/negativos
-    250,  // Pad 1 (Snare)   - Ajustar si hay falsos positivos/negativos
-    200,  // Pad 2 (HiHat)   - Más sensible, threshold menor
-    250   // Pad 3 (Tom)     - Ajustar si hay falsos positivos/negativos
+    250,  // Pad 0 (Kick)
+    250,  // Pad 1 (Snare)
+    200,  // Pad 2 (HiHat)
+    250   // Pad 3 (Tom)
 };
 
 // Rangos de velocity - Calibrar con el comando 'c'
 const uint16_t VELOCITY_MIN_PEAK[4] = {
-    100,  // Pad 0 (Kick)    - Golpe más suave que quieres detectar
-    100,  // Pad 1 (Snare)
-    80,   // Pad 2 (HiHat)   - Típicamente más sensible
-    100   // Pad 3 (Tom)
+    100,  // Kick
+    100,  // Snare
+    80,   // HiHat
+    100   // Tom
 };
 
 const uint16_t VELOCITY_MAX_PEAK[4] = {
-    3500,  // Pad 0 (Kick)    - Golpe más fuerte esperado
-    3500,  // Pad 1 (Snare)
-    3000,  // Pad 2 (HiHat)
-    3500   // Pad 3 (Tom)
+    3500, 3500, 3000, 3500
 };
 
-const uint8_t PAD_MIDI_NOTES[4] = {
-    36,  // Pad 0: Kick (C1 / Bass Drum 1)
-    38,  // Pad 1: Snare (D1 / Acoustic Snare)
-    42,  // Pad 2: HiHat (F#1 / Closed Hi-Hat)
-    48   // Pad 3: Tom (C2 / Hi-Mid Tom)
-};
-
-// Color idle universal (blanco azulado para todos los pads)
-const CRGB PAD_LED_IDLE_COLOR = CRGB(10, 10, 10);  // Blanco con tinte azul suave
-
-// Colores al golpear (asignables por usuario - por defecto: cian, rosa, amarillo, verde)
+const uint8_t PAD_MIDI_NOTES[4] = {36, 38, 42, 48};
+const CRGB PAD_LED_IDLE_COLOR = CRGB(10, 10, 10);
 const CRGB PAD_LED_HIT_COLORS[4] = {
-    CRGB(0, 255, 255),    // Pad 0: Kick - Cian
-    CRGB(255, 50, 150),   // Pad 1: Snare - Rosa/Magenta
-    CRGB(255, 255, 0),    // Pad 2: HiHat - Amarillo
-    CRGB(0, 255, 100)     // Pad 3: Tom - Verde
+    CRGB(0, 255, 255),
+    CRGB(255, 50, 150),
+    CRGB(255, 255, 0),
+    CRGB(0, 255, 100)
 };
 
 // ============================================================
 // GLOBAL VARIABLES
 // ============================================================
 
-// Queue for hit events (Trigger → MIDI/LED)
 QueueHandle_t hitEventQueue;
-
-// Calibration mode
 bool calibrationMode = false;
 uint32_t calibrationStartTime = 0;
 uint16_t calibrationPeaks[4] = {0, 0, 0, 0};
 uint16_t calibrationMins[4] = {4095, 4095, 4095, 4095};
-
-// Statistics
 uint32_t totalHitsDetected = 0;
+bool audioEngineInitialized = false;
+bool samplesLoaded = false;
+uint32_t detectorEnableTimeMs = 0;
 
 // ============================================================
 // FORWARD DECLARATIONS
@@ -110,9 +98,8 @@ void checkADCSafety(uint16_t value, uint8_t padId);
 // ============================================================
 
 void setup() {
-    // Primero Serial (con CDC_ON_BOOT=1, USB CDC ya está activo)
     Serial.begin(115200);
-    delay(1000);  // Dar tiempo al USB para estabilizarse
+    delay(1000);
 
     Serial.println("\n\n");
     Serial.println("╔═══════════════════════════════════════════════╗");
@@ -124,41 +111,51 @@ void setup() {
     Serial.printf("Firmware: %s\n", FIRMWARE_VERSION);
     Serial.println();
 
-    // Inicializar USB MIDI (después de que USB esté estable)
     Serial.println("[MIDI] Initializing USB MIDI...");
     MIDIController::begin();
 
-
-    // Setup hardware
+    Serial.println("[AUDIO] Initializing audio engine...");
+    /*
+    audioEngineInitialized = AudioEngine::begin();
+    if (audioEngineInitialized) {
+        size_t loaded = SampleManager::beginAndLoadDefaults();
+        if (loaded == 0) {
+            Serial.println("[AUDIO] Failed to load default samples");
+        } else {
+            samplesLoaded = true;
+            Serial.printf("[AUDIO] Default samples loaded: %u\n", (unsigned)loaded);
+        }
+    } else {
+        Serial.println("[AUDIO] Audio engine init failed");
+    }
+*/
     setupHardware();
 
-    // Create hit event queue
     hitEventQueue = xQueueCreate(QUEUE_SIZE_HIT_EVENTS, sizeof(HitEvent));
-    if (hitEventQueue == nullptr) {
+    if (!hitEventQueue) {
         Serial.println("[ERROR] Failed to create hit event queue!");
         while (1) delay(1000);
     }
     Serial.println("[Queue] Hit event queue created");
 
-    // Initialize trigger system
     Serial.println("\n[System] Initializing trigger detection...");
     triggerScanner.begin(hitEventQueue);
-
-    // Start high-precision scanner with esp_timer (replaces FreeRTOS task)
+    delay(1500);
+    triggerDetector.resetAll();
+    HitEvent dummyEvent;
+    while (xQueueReceive(hitEventQueue, &dummyEvent, 0) == pdTRUE) {}
     startTriggerScanner();
     Serial.println("[Scanner] High-precision scanner started (esp_timer @ 2kHz)");
+    detectorEnableTimeMs = millis() + 1500;
 
-
-    // Initialize NeoPixel LEDs
     Serial.println("\n[LED] Initializing NeoPixels...");
     NeoPixelController::begin();
 
-    // Set idle color (mismo blanco azulado para todos los pads)
     uint32_t idleColor = ((uint32_t)PAD_LED_IDLE_COLOR.r << 16) |
                          ((uint32_t)PAD_LED_IDLE_COLOR.g << 8) |
                          PAD_LED_IDLE_COLOR.b;
     for (uint8_t i = 0; i < NUM_PADS; i++) {
-        NeoPixelController::setIdleColor(i, idleColor, 40);  // 40% brightness for idle
+        NeoPixelController::setIdleColor(i, idleColor, 40);
     }
     Serial.println("[LED] NeoPixels initialized with idle colors");
 
@@ -175,24 +172,16 @@ void setup() {
 // ============================================================
 
 void loop() {
-    // Process hit events from queue
     processHitEvents();
-
-    // Update MIDI (process note offs)
     MIDIController::update();
-
-    // Update LED animations
     NeoPixelController::update();
-
-    // Handle serial commands
     handleSerialCommands();
 
-    // Process calibration if active
     if (calibrationMode) {
         processCalibration();
     }
 
-    delay(1);  // Yield to FreeRTOS
+    delay(1);
 }
 
 // ============================================================
@@ -202,7 +191,6 @@ void loop() {
 void setupHardware() {
     Serial.println("[Hardware] Configurando ADC...");
 
-    // Configure ADC for all pads
     analogReadResolution(ADC_RESOLUTION);
     analogSetAttenuation(ADC_ATTENUATION);
 
@@ -223,28 +211,26 @@ void setupHardware() {
 void processHitEvents() {
     HitEvent event;
 
-    // Check if there are events in the queue
     while (xQueueReceive(hitEventQueue, &event, 0) == pdTRUE) {
+        if (millis() < detectorEnableTimeMs) {
+            continue;
+        }
         totalHitsDetected++;
 
-        // Clamp velocity to valid MIDI range (1-127)
         uint8_t velocity = CLAMP(event.velocity, 1, 127);
 
-        // Print hit information
         Serial.printf("🥁 HIT: %s | Velocity=%3d | Baseline=%3d | Total=%u\n",
                       PAD_NAMES[event.padId],
                       velocity,
                       triggerDetector.getBaseline(event.padId),
                       totalHitsDetected);
 
-        // Send MIDI Note
         uint8_t midiNote = PAD_MIDI_NOTES[event.padId];
         MIDIController::sendNoteOn(midiNote, velocity);
 
-        // Flash LED con el color asignado al pad (cian/rosa/amarillo/verde)
         CRGB color = PAD_LED_HIT_COLORS[event.padId];
         uint32_t hitColor = ((uint32_t)color.r << 16) | ((uint32_t)color.g << 8) | color.b;
-        uint8_t brightness = map(velocity, 0, 127, 100, 255);  // Map velocity to brightness
+        uint8_t brightness = map(velocity, 0, 127, 100, 255);
         NeoPixelController::flashPad(event.padId, hitColor, brightness, 300);
 
         // TODO: Play audio sample
@@ -261,36 +247,27 @@ void handleSerialCommands() {
     char cmd = Serial.read();
 
     switch (cmd) {
-        case 's':
-        case 'S':
-            printStats();
-            break;
-
-        case 'd':
-        case 'D':
-            printDetectorState();
-            break;
-
-        case 'c':
-        case 'C':
-            startCalibration();
-            break;
-
-        case 'r':
-        case 'R':
+        case 's': case 'S': printStats(); break;
+        case 'd': case 'D': printDetectorState(); break;
+        case 'c': case 'C': startCalibration(); break;
+        case 'r': case 'R':
             triggerScanner.resetStats();
             triggerDetector.resetAll();
             totalHitsDetected = 0;
             Serial.println("✅ Sistema reseteado\n");
             break;
-
-        case 'h':
-        case 'H':
-            printHelp();
+        case 'a': case 'A':
+            if (!audioEngineInitialized || !samplesLoaded) {
+                Serial.println("[AUDIO] Motor sin inicializar o sin samples cargados");
+            } else {
+                Serial.println("[AUDIO] Reproduciendo sample de prueba (kick)...");
+                if (!SampleManager::playSample(SAMPLE_PATH_KICK, 120, 100)) {
+                    Serial.println("[AUDIO] Error al reproducir kick.wav");
+                }
+            }
             break;
-
-        default:
-            break;
+        case 'h': case 'H': printHelp(); break;
+        default: break;
     }
 }
 
@@ -380,7 +357,6 @@ void startCalibration() {
     calibrationMode = true;
     calibrationStartTime = millis();
 
-    // Reset calibration data
     for (int i = 0; i < NUM_PADS; i++) {
         calibrationPeaks[i] = 0;
         calibrationMins[i] = 4095;
@@ -392,7 +368,6 @@ void startCalibration() {
 void processCalibration() {
     uint32_t elapsed = millis() - calibrationStartTime;
 
-    // Show progress every 5 seconds
     static uint32_t lastProgressTime = 0;
     if (millis() - lastProgressTime > 5000) {
         lastProgressTime = millis();
@@ -400,15 +375,13 @@ void processCalibration() {
         Serial.printf("⏱️  %u segundos restantes...\n", remaining);
     }
 
-    // Check for cancellation
     if (Serial.available()) {
         calibrationMode = false;
         Serial.println("\n❌ Calibración cancelada\n");
-        while (Serial.available()) Serial.read();  // Clear buffer
+        while (Serial.available()) Serial.read();
         return;
     }
 
-    // Check if calibration time expired
     if (elapsed > 30000) {
         calibrationMode = false;
 
@@ -422,7 +395,7 @@ void processCalibration() {
         Serial.println("const uint16_t TRIGGER_THRESHOLD_PER_PAD[4] = {");
         for (int i = 0; i < NUM_PADS; i++) {
             uint16_t baseline = triggerDetector.getBaseline(i);
-            uint16_t suggested = baseline + 80;  // Margen de 80 ADC sobre baseline
+            uint16_t suggested = baseline + 80;
             Serial.printf("    %3d,  // %s (baseline observado: ~%d ADC, %.2fV)\n",
                           suggested,
                           PAD_NAMES[i],
@@ -457,7 +430,7 @@ void processCalibration() {
 }
 
 // ============================================================
-// SAFETY CHECK (called by scanner)
+// SAFETY CHECK
 // ============================================================
 
 void checkADCSafety(uint16_t value, uint8_t padId) {

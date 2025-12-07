@@ -47,11 +47,9 @@ void begin() {
     USB.manufacturerName("GrooveDrum");
     USB.serialNumber("0001");
 
-    // Habilitar interfaz MIDI antes de iniciar USB
     tinyusb_enable_interface(USB_INTERFACE_MIDI, TUD_MIDI_DESC_LEN, tud_midi_desc_cb);
     USB.begin();
 
-    // Esperar montaje por el host
     uint32_t timeout = millis() + 5000;
     while (!tud_midi_mounted() && millis() < timeout) {
         delay(20);

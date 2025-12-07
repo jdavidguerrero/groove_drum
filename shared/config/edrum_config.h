@@ -41,6 +41,12 @@ extern const char* PAD_NAMES[4];
 #define SD_MISO_PIN 13
 #define SD_SCK_PIN  12
 
+// Default sample paths on SD
+#define SAMPLE_PATH_KICK   "/samples/default/kick.wav"
+#define SAMPLE_PATH_SNARE  "/samples/default/snare.wav"
+#define SAMPLE_PATH_HIHAT  "/samples/default/hihat.wav"
+#define SAMPLE_PATH_TOM    "/samples/default/tom.wav"
+
 // --- MIDI OUTPUT (Hardware Serial 1) ---
 #define MIDI_TX_PIN 9    
 #define MIDI_BAUD   31250
@@ -127,6 +133,7 @@ extern const char* PAD_NAMES[4];
 // Baseline Tracking (for DC offset compensation)
 #define BASELINE_UPDATE_WEIGHT 1024     // Exponential moving average weight (1/1024)
 #define BASELINE_INITIAL_VALUE 150      // Initial baseline value
+#define MIN_BASELINE_VALUE 50           // Minimum baseline value to prevent collapse to 0
 
 // Legacy trigger parameters (for backward compatibility with old detector code)
 #define TRIGGER_SCAN_TIME_US 2000       // Peak detection window (2ms)
