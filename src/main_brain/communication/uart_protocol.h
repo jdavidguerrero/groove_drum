@@ -170,7 +170,7 @@ private:
     // Low-level protocol
     static void sendMessage(uint8_t msgType, const void* payload, uint16_t length);
     static bool receiveMessage(uint8_t& msgType, uint8_t* payload, uint16_t& length);
-    static uint16_t calculateCRC16(const uint8_t* data, uint16_t length);
+    static uint16_t calculateCRC16(const uint8_t* data, uint16_t length, uint16_t crc = 0xFFFF);
 
     // Command handlers
     static void handleSetThreshold(const SetThresholdCmd& cmd);

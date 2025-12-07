@@ -143,8 +143,8 @@ void setup() {
     startTriggerScanner();
     Serial.println("[Scanner] High-precision scanner started (esp_timer @ 2kHz)");
 
-    // Initialize MIDI
-    Serial.println("\n[MIDI] Initializing MIDI controller...");
+    // Initialize MIDI controller
+    Serial.println("\n[MIDI] Initializing USB MIDI...");
     MIDIController::begin();
 
     // Initialize NeoPixel LEDs

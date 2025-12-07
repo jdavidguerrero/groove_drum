@@ -113,6 +113,11 @@ public:
     uint16_t getBaseline(uint8_t padId) const;
 
     /**
+     * @brief Get full pad state snapshot (for calibration/diagnostics)
+     */
+    const PadState& getPadState(uint8_t padId) const;
+
+    /**
      * @brief Reset state for a specific pad
      * @param padId Pad ID
      */

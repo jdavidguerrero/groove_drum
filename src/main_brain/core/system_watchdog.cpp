@@ -1,5 +1,6 @@
 #include "system_watchdog.h"
 #include <esp_system.h>
+#include "pad_config.h"
 
 namespace SystemWatchdog {
 
@@ -25,9 +26,9 @@ void begin(const WatchdogConfig& cfg) {
     esp_task_wdt_init(30, true);  // 30s timeout, panic on timeout
 
     Serial.println("[WATCHDOG] System watchdog initialized");
-    Serial.printf("  Scanner timeout:   %lu µs\n", config.scannerTimeoutUs);
-    Serial.printf("  Heap warning:      %lu bytes\n", config.heapWarningBytes);
-    Serial.printf("  PSRAM warning:     %lu bytes\n", config.psramWarningBytes);
+    Serial.printf("  Scanner timeout:   %u µs\n", config.scannerTimeoutUs);
+    Serial.printf("  Heap warning:      %u bytes\n", config.heapWarningBytes);
+    Serial.printf("  PSRAM warning:     %u bytes\n", config.psramWarningBytes);
     Serial.printf("  Temp warning:      %d °C\n", config.tempWarningCelsius);
     Serial.printf("  Temp critical:     %d °C\n", config.tempCriticalCelsius);
 }
@@ -51,7 +52,7 @@ void update() {
     // Check heap
     if (health.freeHeap < config.heapWarningBytes) {
         if (now - lastWarningTime > WARNING_COOLDOWN_MS) {
-            Serial.printf("[WATCHDOG] ⚠️  LOW HEAP: %lu bytes free\n", health.freeHeap);
+            Serial.printf("[WATCHDOG] ⚠️  LOW HEAP: %u bytes free\n", health.freeHeap);
             lastWarningTime = now;
             totalWarnings++;
         }
@@ -61,7 +62,7 @@ void update() {
     // Check PSRAM
     if (health.freePSRAM < config.psramWarningBytes) {
         if (now - lastWarningTime > WARNING_COOLDOWN_MS) {
-            Serial.printf("[WATCHDOG] ⚠️  LOW PSRAM: %lu bytes free\n", health.freePSRAM);
+            Serial.printf("[WATCHDOG] ⚠️  LOW PSRAM: %u bytes free\n", health.freePSRAM);
             lastWarningTime = now;
             totalWarnings++;
         }
@@ -83,7 +84,7 @@ void update() {
     // Check scanner performance
     if (health.scannerMaxTime > config.scannerTimeoutUs) {
         if (now - lastWarningTime > WARNING_COOLDOWN_MS) {
-            Serial.printf("[WATCHDOG] ⚠️  SCANNER SLOW: %lu µs (target: %lu µs)\n",
+            Serial.printf("[WATCHDOG] ⚠️  SCANNER SLOW: %u µs (target: %u µs)\n",
                           health.scannerMaxTime, config.scannerTimeoutUs);
             lastWarningTime = now;
             totalWarnings++;
@@ -124,16 +125,16 @@ void printHealth() {
     Serial.printf("║ Status:        %s                  ║\n",
                   health.isHealthy ? "✓ HEALTHY " : "⚠ WARNING ");
     Serial.println("╟────────────────────────────────────────╢");
-    Serial.printf("║ Free Heap:     %6lu KB             ║\n", health.freeHeap / 1024);
-    Serial.printf("║ Free PSRAM:    %6lu KB             ║\n", health.freePSRAM / 1024);
+    Serial.printf("║ Free Heap:     %6u KB             ║\n", health.freeHeap / 1024);
+    Serial.printf("║ Free PSRAM:    %6u KB             ║\n", health.freePSRAM / 1024);
     Serial.printf("║ Temperature:   %4d °C              ║\n", health.temperatureCelsius);
-    Serial.printf("║ Uptime:        %6lu s              ║\n", health.uptimeSeconds);
+    Serial.printf("║ Uptime:        %6u s              ║\n", health.uptimeSeconds);
     Serial.println("╟────────────────────────────────────────╢");
-    Serial.printf("║ Scanner max:   %6lu µs             ║\n", health.scannerMaxTime);
-    Serial.printf("║ Missed deadlines: %6lu            ║\n", health.scannerMissedDeadlines);
+    Serial.printf("║ Scanner max:   %6u µs             ║\n", health.scannerMaxTime);
+    Serial.printf("║ Missed deadlines: %6u            ║\n", health.scannerMissedDeadlines);
     Serial.println("╟────────────────────────────────────────╢");
-    Serial.printf("║ Total warnings:   %6lu            ║\n", totalWarnings);
-    Serial.printf("║ Total recoveries: %6lu            ║\n", totalRecoveries);
+    Serial.printf("║ Total warnings:   %6u            ║\n", totalWarnings);
+    Serial.printf("║ Total recoveries: %6u            ║\n", totalRecoveries);
     Serial.println("╚════════════════════════════════════════╝\n");
 }
 
@@ -148,11 +149,10 @@ void triggerRecovery(const char* reason) {
     Serial.println("║     SYSTEM RECOVERY TRIGGERED          ║");
     Serial.println("╚════════════════════════════════════════╝");
     Serial.printf("Reason: %s\n", reason);
-    Serial.printf("Uptime: %lu seconds\n", health.uptimeSeconds);
+    Serial.printf("Uptime: %u seconds\n", health.uptimeSeconds);
     Serial.println("\nSaving config to NVS...");
 
     // Save current configuration before reboot
-    #include "pad_config.h"
     PadConfigManager::saveToNVS();
 
     Serial.println("Rebooting in 3 seconds...");

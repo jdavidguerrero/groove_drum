@@ -3,6 +3,7 @@
 #include "uart_protocol.h"
 #include "neopixel_controller.h"
 #include "sk9822_controller.h"
+#include "midi_controller.h"
 
 // Static members
 QueueHandle_t EventDispatcher::hitQueue = nullptr;
@@ -231,7 +232,7 @@ void EventDispatcher::dispatchMIDI(const MIDIRequest& request) {
 namespace LEDController {
     void begin() {
         NeoPixelController::begin();
-        SK9822Controller::begin();
+        EncoderLEDController::begin();
         Serial.println("[LED] Controller initialized");
     }
 
@@ -249,7 +250,7 @@ namespace LEDController {
     void update() {
         // Update both NeoPixels and SK9822
         NeoPixelController::update();
-        SK9822Controller::update();
+        EncoderLEDController::update();
     }
 }
 
@@ -274,24 +275,4 @@ namespace AudioPlayer {
     }
 }
 
-namespace MIDIController {
-    void begin() {
-        // TODO: Initialize MIDI over USB or Serial
-        Serial.println("[MIDI] Controller initialized (stub)");
-    }
-
-    void sendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity) {
-        // TODO: Send MIDI note on
-        #ifdef DEBUG_VERBOSE
-        Serial.printf("[MIDI] NoteOn: CH%d Note%d Vel%d\n", channel, note, velocity);
-        #endif
-    }
-
-    void sendNoteOff(uint8_t channel, uint8_t note) {
-        // TODO: Send MIDI note off
-    }
-
-    void sendCC(uint8_t channel, uint8_t cc, uint8_t value) {
-        // TODO: Send MIDI CC
-    }
-}
+// MIDIController implementation lives in src/main_brain/output/midi_controller.*

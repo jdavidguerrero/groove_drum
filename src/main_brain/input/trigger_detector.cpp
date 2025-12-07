@@ -260,6 +260,12 @@ uint16_t TriggerDetector::getBaseline(uint8_t padId) const {
     return padStates[padId].baselineValue;
 }
 
+const PadState& TriggerDetector::getPadState(uint8_t padId) const {
+    static PadState dummy;
+    if (padId >= NUM_PADS) return dummy;
+    return padStates[padId];
+}
+
 // ============================================================
 // RESET FUNCTIONS
 // ============================================================

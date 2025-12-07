@@ -2,6 +2,7 @@
 #define PAD_CONFIG_H
 
 #include <Arduino.h>
+#include <cstring>
 
 // ============================================================================
 // PAD CONFIGURATION STRUCTURE
@@ -56,157 +57,148 @@ struct PadConfig {
 // DEFAULT CONFIGURATIONS
 // ============================================================================
 
-// Factory defaults for each pad type
-const PadConfig DEFAULT_KICK_CONFIG = {
-    // Trigger
-    .threshold = 250,
-    .velocityMin = 150,
-    .velocityMax = 2500,
-    .velocityCurve = 0.5f,  // Square root for natural feel
+inline PadConfig makeKickConfig() {
+    PadConfig cfg{};
+    cfg.threshold = 250;
+    cfg.velocityMin = 150;
+    cfg.velocityMax = 2500;
+    cfg.velocityCurve = 0.5f;
+    cfg.crosstalkEnabled = true;
+    cfg.crosstalkWindow = 50;
+    cfg.crosstalkRatio = 0.7f;
+    cfg.crosstalkMask = 0b00001110;
+    cfg.peakWindowMs = 2;
+    cfg.decayTimeMs = 30;
+    cfg.minRetriggerMs = 20;
+    cfg.midiNote = 36;
+    cfg.midiChannel = 10;
+    std::strncpy(cfg.sampleName, "kick_001.wav", sizeof(cfg.sampleName));
+    cfg.sampleName[sizeof(cfg.sampleName) - 1] = '\0';
+    cfg.sampleVolume = 100;
+    cfg.samplePitch = 0;
+    cfg.ledColorHit = 0xFF0000;
+    cfg.ledColorIdle = 0x330000;
+    cfg.ledBrightness = 80;
+    cfg.ledFadeDuration = 200;
+    cfg.dualZoneEnabled = false;
+    cfg.rimThreshold = 0;
+    cfg.rimMidiNote = 0;
+    cfg.rimSampleName[0] = '\0';
+    std::strncpy(cfg.name, "Kick", sizeof(cfg.name));
+    cfg.name[sizeof(cfg.name) - 1] = '\0';
+    cfg.padType = 0;
+    cfg.enabled = true;
+    return cfg;
+}
 
-    // Crosstalk
-    .crosstalkEnabled = true,
-    .crosstalkWindow = 50,
-    .crosstalkRatio = 0.7f,
-    .crosstalkMask = 0b00001110,  // Check snare, hihat, tom (not itself)
+inline PadConfig makeSnareConfig() {
+    PadConfig cfg{};
+    cfg.threshold = 250;
+    cfg.velocityMin = 150;
+    cfg.velocityMax = 2200;
+    cfg.velocityCurve = 0.5f;
+    cfg.crosstalkEnabled = true;
+    cfg.crosstalkWindow = 50;
+    cfg.crosstalkRatio = 0.7f;
+    cfg.crosstalkMask = 0b00001101;
+    cfg.peakWindowMs = 2;
+    cfg.decayTimeMs = 25;
+    cfg.minRetriggerMs = 15;
+    cfg.midiNote = 38;
+    cfg.midiChannel = 10;
+    std::strncpy(cfg.sampleName, "snare_001.wav", sizeof(cfg.sampleName));
+    cfg.sampleName[sizeof(cfg.sampleName) - 1] = '\0';
+    cfg.sampleVolume = 95;
+    cfg.samplePitch = 0;
+    cfg.ledColorHit = 0x00FF00;
+    cfg.ledColorIdle = 0x003300;
+    cfg.ledBrightness = 80;
+    cfg.ledFadeDuration = 150;
+    cfg.dualZoneEnabled = true;
+    cfg.rimThreshold = 300;
+    cfg.rimMidiNote = 40;
+    std::strncpy(cfg.rimSampleName, "snare_rim_001.wav", sizeof(cfg.rimSampleName));
+    cfg.rimSampleName[sizeof(cfg.rimSampleName) - 1] = '\0';
+    std::strncpy(cfg.name, "Snare", sizeof(cfg.name));
+    cfg.name[sizeof(cfg.name) - 1] = '\0';
+    cfg.padType = 1;
+    cfg.enabled = true;
+    return cfg;
+}
 
-    // Timing
-    .peakWindowMs = 2,
-    .decayTimeMs = 30,
-    .minRetriggerMs = 20,
+inline PadConfig makeHiHatConfig() {
+    PadConfig cfg{};
+    cfg.threshold = 200;
+    cfg.velocityMin = 100;
+    cfg.velocityMax = 1800;
+    cfg.velocityCurve = 0.5f;
+    cfg.crosstalkEnabled = true;
+    cfg.crosstalkWindow = 50;
+    cfg.crosstalkRatio = 0.7f;
+    cfg.crosstalkMask = 0b00001011;
+    cfg.peakWindowMs = 2;
+    cfg.decayTimeMs = 20;
+    cfg.minRetriggerMs = 10;
+    cfg.midiNote = 42;
+    cfg.midiChannel = 10;
+    std::strncpy(cfg.sampleName, "hihat_closed_001.wav", sizeof(cfg.sampleName));
+    cfg.sampleName[sizeof(cfg.sampleName) - 1] = '\0';
+    cfg.sampleVolume = 85;
+    cfg.samplePitch = 0;
+    cfg.ledColorHit = 0x00FFFF;
+    cfg.ledColorIdle = 0x003333;
+    cfg.ledBrightness = 80;
+    cfg.ledFadeDuration = 100;
+    cfg.dualZoneEnabled = true;
+    cfg.rimThreshold = 350;
+    cfg.rimMidiNote = 46;
+    std::strncpy(cfg.rimSampleName, "hihat_open_001.wav", sizeof(cfg.rimSampleName));
+    cfg.rimSampleName[sizeof(cfg.rimSampleName) - 1] = '\0';
+    std::strncpy(cfg.name, "HiHat", sizeof(cfg.name));
+    cfg.name[sizeof(cfg.name) - 1] = '\0';
+    cfg.padType = 4;
+    cfg.enabled = true;
+    return cfg;
+}
 
-    // Audio/MIDI
-    .midiNote = 36,  // C1 (standard kick)
-    .midiChannel = 10,  // MIDI drum channel
-    .sampleName = "kick_001.wav",
-    .sampleVolume = 100,
-    .samplePitch = 0,
+inline PadConfig makeTomConfig() {
+    PadConfig cfg{};
+    cfg.threshold = 250;
+    cfg.velocityMin = 150;
+    cfg.velocityMax = 2000;
+    cfg.velocityCurve = 0.5f;
+    cfg.crosstalkEnabled = true;
+    cfg.crosstalkWindow = 50;
+    cfg.crosstalkRatio = 0.7f;
+    cfg.crosstalkMask = 0b00000111;
+    cfg.peakWindowMs = 2;
+    cfg.decayTimeMs = 30;
+    cfg.minRetriggerMs = 15;
+    cfg.midiNote = 48;
+    cfg.midiChannel = 10;
+    std::strncpy(cfg.sampleName, "tom_001.wav", sizeof(cfg.sampleName));
+    cfg.sampleName[sizeof(cfg.sampleName) - 1] = '\0';
+    cfg.sampleVolume = 90;
+    cfg.samplePitch = 0;
+    cfg.ledColorHit = 0x0000FF;
+    cfg.ledColorIdle = 0x000033;
+    cfg.ledBrightness = 80;
+    cfg.ledFadeDuration = 180;
+    cfg.dualZoneEnabled = false;
+    cfg.rimThreshold = 0;
+    cfg.rimMidiNote = 0;
+    cfg.rimSampleName[0] = '\0';
+    std::strncpy(cfg.name, "Tom", sizeof(cfg.name));
+    cfg.name[sizeof(cfg.name) - 1] = '\0';
+    cfg.padType = 2;
+    cfg.enabled = true;
+    return cfg;
+}
 
-    // Visual
-    .ledColorHit = 0xFF0000,    // Red on hit
-    .ledColorIdle = 0x330000,   // Dim red idle
-    .ledBrightness = 80,
-    .ledFadeDuration = 200,
-
-    // Advanced
-    .dualZoneEnabled = false,
-    .rimThreshold = 0,
-    .rimMidiNote = 0,
-    .rimSampleName = "",
-
-    // Metadata
-    .name = "Kick",
-    .padType = 0,
-    .enabled = true
-};
-
-const PadConfig DEFAULT_SNARE_CONFIG = {
-    .threshold = 250,
-    .velocityMin = 150,
-    .velocityMax = 2200,
-    .velocityCurve = 0.5f,
-
-    .crosstalkEnabled = true,
-    .crosstalkWindow = 50,
-    .crosstalkRatio = 0.7f,
-    .crosstalkMask = 0b00001101,  // Check kick, hihat, tom
-
-    .peakWindowMs = 2,
-    .decayTimeMs = 25,
-    .minRetriggerMs = 15,
-
-    .midiNote = 38,  // D1 (standard snare)
-    .midiChannel = 10,
-    .sampleName = "snare_001.wav",
-    .sampleVolume = 95,
-    .samplePitch = 0,
-
-    .ledColorHit = 0x00FF00,    // Green on hit
-    .ledColorIdle = 0x003300,
-    .ledBrightness = 80,
-    .ledFadeDuration = 150,
-
-    .dualZoneEnabled = true,     // Snare can have rim shots
-    .rimThreshold = 300,
-    .rimMidiNote = 40,           // E1 (rimshot)
-    .rimSampleName = "snare_rim_001.wav",
-
-    .name = "Snare",
-    .padType = 1,
-    .enabled = true
-};
-
-const PadConfig DEFAULT_HIHAT_CONFIG = {
-    .threshold = 200,  // More sensitive
-    .velocityMin = 100,
-    .velocityMax = 1800,
-    .velocityCurve = 0.5f,
-
-    .crosstalkEnabled = true,
-    .crosstalkWindow = 50,
-    .crosstalkRatio = 0.7f,
-    .crosstalkMask = 0b00001011,  // Check kick, snare, tom
-
-    .peakWindowMs = 2,
-    .decayTimeMs = 20,
-    .minRetriggerMs = 10,  // Faster for rolls
-
-    .midiNote = 42,  // F#1 (closed hihat)
-    .midiChannel = 10,
-    .sampleName = "hihat_closed_001.wav",
-    .sampleVolume = 85,
-    .samplePitch = 0,
-
-    .ledColorHit = 0x00FFFF,    // Cyan on hit
-    .ledColorIdle = 0x003333,
-    .ledBrightness = 80,
-    .ledFadeDuration = 100,
-
-    .dualZoneEnabled = true,     // Closed vs Open
-    .rimThreshold = 350,
-    .rimMidiNote = 46,           // A#1 (open hihat)
-    .rimSampleName = "hihat_open_001.wav",
-
-    .name = "HiHat",
-    .padType = 4,
-    .enabled = true
-};
-
-const PadConfig DEFAULT_TOM_CONFIG = {
-    .threshold = 250,
-    .velocityMin = 150,
-    .velocityMax = 2000,
-    .velocityCurve = 0.5f,
-
-    .crosstalkEnabled = true,
-    .crosstalkWindow = 50,
-    .crosstalkRatio = 0.7f,
-    .crosstalkMask = 0b00000111,  // Check kick, snare, hihat
-
-    .peakWindowMs = 2,
-    .decayTimeMs = 30,
-    .minRetriggerMs = 15,
-
-    .midiNote = 48,  // C2 (high tom)
-    .midiChannel = 10,
-    .sampleName = "tom_001.wav",
-    .sampleVolume = 90,
-    .samplePitch = 0,
-
-    .ledColorHit = 0x0000FF,    // Blue on hit
-    .ledColorIdle = 0x000033,
-    .ledBrightness = 80,
-    .ledFadeDuration = 180,
-
-    .dualZoneEnabled = false,
-    .rimThreshold = 0,
-    .rimMidiNote = 0,
-    .rimSampleName = "",
-
-    .name = "Tom",
-    .padType = 2,
-    .enabled = true
-};
+const PadConfig DEFAULT_KICK_CONFIG = makeKickConfig();
+const PadConfig DEFAULT_SNARE_CONFIG = makeSnareConfig();
+const PadConfig DEFAULT_HIHAT_CONFIG = makeHiHatConfig();
+const PadConfig DEFAULT_TOM_CONFIG = makeTomConfig();
 
 // ============================================================================
 // CONFIGURATION MANAGEMENT

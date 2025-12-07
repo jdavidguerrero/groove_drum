@@ -78,13 +78,10 @@ bool configureADC() {
     // Note: ESP32-S3 ADC is non-linear at extremes, stay in 200-3500 range
     analogSetAttenuation(ADC_ATTENUATION);
 
-    // Set ADC width
-    analogSetWidth(ADC_RESOLUTION);
-
     // Configure ADC calibration (compensates for chip-to-chip variation)
     esp_adc_cal_value_t val_type = esp_adc_cal_characterize(
         ADC_UNIT_1,
-        ADC_ATTENUATION,
+        ADC_ATTEN_DB_11,
         ADC_WIDTH_BIT_12,
         1100,  // Default Vref in mV
         &adc_chars
@@ -206,21 +203,6 @@ bool testADC() {
 }
 
 // ============================================================
-// SAFETY MONITORING
-// ============================================================
-
-bool checkADCSafety(uint16_t adcValue, uint8_t padId) {
-    if (adcValue > ADC_SAFETY_LIMIT) {
-        Serial.printf("[CRITICAL] Pad %d: ADC value %d exceeds safety limit!\n",
-                      padId, adcValue);
-        Serial.println("[CRITICAL] Protection circuit may have failed!");
-        Serial.println("[CRITICAL] Disconnect piezo immediately!");
-        return false;
-    }
-    return true;
-}
-
-// ============================================================
 // SYSTEM INFO
 // ============================================================
 
@@ -264,7 +246,6 @@ void printSystemInfo() {
 
     Serial.println("\n--- Algorithm Parameters ---");
     Serial.printf("Scan Rate: %d Hz (%d µs period)\n", SCAN_RATE_HZ, SCAN_PERIOD_US);
-    Serial.printf("Threshold Min: %d ADC units\n", TRIGGER_THRESHOLD_MIN);
     Serial.printf("Scan Time: %d µs\n", TRIGGER_SCAN_TIME_US);
     Serial.printf("Mask Time: %d µs\n", TRIGGER_MASK_TIME_US);
     Serial.printf("Crosstalk Window: %d µs\n", TRIGGER_CROSSTALK_WINDOW_US);

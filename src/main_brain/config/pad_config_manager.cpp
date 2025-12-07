@@ -100,7 +100,7 @@ void PadConfigManager::setVelocityCurve(uint8_t padId, float curve) {
 
 void PadConfigManager::setMidiNote(uint8_t padId, uint8_t note) {
     if (padId >= 8) return;
-    configs[padId].midiNote = constrain(note, 0, 127);
+    configs[padId].midiNote = (note > 127) ? 127 : note;
 }
 
 void PadConfigManager::setSample(uint8_t padId, const char* filename) {
@@ -153,7 +153,7 @@ void PadConfigManager::resetAllToDefaults() {
 // ============================================================================
 
 String PadConfigManager::exportJSON() {
-    JsonDocument doc;
+    DynamicJsonDocument doc(2048);
 
     for (uint8_t i = 0; i < 4; i++) {
         JsonObject pad = doc["pads"][i].to<JsonObject>();
@@ -192,7 +192,7 @@ String PadConfigManager::exportJSON() {
 }
 
 bool PadConfigManager::importJSON(const String& json) {
-    JsonDocument doc;
+    DynamicJsonDocument doc(2048);
     DeserializationError error = deserializeJson(doc, json);
 
     if (error) {

@@ -2,56 +2,40 @@
 #define MIDI_CONTROLLER_H
 
 #include <Arduino.h>
-#include <USB.h>
-
-// TinyUSB MIDI support
-extern "C" {
-    #include "class/midi/midi_device.h"
-}
-
-// ============================================================================
-// MIDI CONTROLLER - USB MIDI OUTPUT
-// ============================================================================
-// Handles MIDI note output for drum pads via USB MIDI (native TinyUSB)
-// - Note On/Off messages
-// - Velocity mapping
-// - Automatic note off scheduling
-//
-// Hardware: Conectar ESP32-S3 por USB (aparece como dispositivo MIDI)
-// Basado en TinyUSB MIDI Device API
 
 namespace MIDIController {
 
-// MIDI Configuration
-#define MIDI_CHANNEL 0        // Canal 1 (0-indexed)
-#define NOTE_OFF_DURATION 50  // Duración de la nota en ms
-#define MIDI_CABLE_NUM 0      // Cable virtual (siempre 0 para un solo puerto)
+// Configuración MIDI
+constexpr uint8_t  MIDI_CHANNEL        = 10;  // Canal 10 (estándar para drums)
+constexpr uint32_t NOTE_OFF_DURATION   = 50;  // ms
 
-// Note Off event structure
+// Estructura para gestionar Note-Offs automáticos
 struct NoteOffEvent {
-    uint8_t note;
-    uint32_t offTime;  // millis() cuando debe apagarse
+    uint8_t  note;
+    uint8_t  channel;
+    uint32_t offTime;
 };
 
-// ============================================================================
-// INTERFACE
-// ============================================================================
-
-// Initialize MIDI controller
+// Inicialización - debe llamarse en setup() ANTES de Serial.begin()
 void begin();
 
-// Send MIDI Note On
+// Envío de notas (canal por defecto o específico)
 void sendNoteOn(uint8_t note, uint8_t velocity);
+void sendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity);
 
-// Send MIDI Note Off
 void sendNoteOff(uint8_t note);
+void sendNoteOff(uint8_t channel, uint8_t note);
 
-// Process scheduled note offs (call from loop)
+// Control Change (para hi-hat, expresión, etc.)
+void sendControlChange(uint8_t control, uint8_t value);
+void sendControlChange(uint8_t channel, uint8_t control, uint8_t value);
+
+// Actualización - debe llamarse en loop() para procesar note-offs
 void update();
 
-// Get MIDI status for debugging
+// Estado de conexión USB
 bool isConnected();
 
 }  // namespace MIDIController
 
-#endif  // MIDI_CONTROLLER_H
+#endif

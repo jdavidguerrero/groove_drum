@@ -1,5 +1,6 @@
 #include "uart_protocol.h"
 #include "pad_config.h"
+#include <ArduinoJson.h>
 #include <esp_system.h>
 
 // Static member initialization
@@ -58,7 +59,7 @@ void UARTProtocol::sendSystemStatus() {
 
 void UARTProtocol::sendConfigUpdate(uint8_t padId) {
     // Send individual pad config as JSON
-    JsonDocument doc;
+    DynamicJsonDocument doc(256);
     PadConfig& cfg = PadConfigManager::getConfig(padId);
 
     doc["padId"] = padId;

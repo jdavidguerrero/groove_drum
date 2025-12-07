@@ -83,4 +83,5 @@ void printSystemInfo();
  * @param padId Pad ID for error reporting
  * @return true if value is safe, false if exceeded safety limit
  */
-bool checkADCSafety(uint16_t adcValue, uint8_t padId);
+// Note: public checkADCSafety is implemented in main.cpp for the scanner.
+// Internal ADC checks inside system_config use a private helper.

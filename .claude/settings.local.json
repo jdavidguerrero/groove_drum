@@ -4,7 +4,22 @@
       "Bash(mkdir:*)",
       "Bash(pio run:*)",
       "Bash(platformio run:*)",
-      "Bash(~/.platformio/penv/bin/pio run:*)"
+      "Bash(~/.platformio/penv/bin/pio run:*)",
+      "Bash(~/.platformio/penv/bin/pio device monitor:*)",
+      "Bash(system_profiler:*)",
+      "Bash(screen:*)",
+      "Bash(ls:*)",
+      "Bash(~/.platformio/penv/bin/pio pkg search:*)",
+      "Bash(tree:*)",
+      "Bash(cat:*)",
+      "Bash(file:*)",
+      "Bash(wc:*)",
+      "Bash(xargs:*)",
+      "Bash(grep:*)",
+      "Bash(du:*)",
+      "Bash(find:*)",
+      "Bash(python3:*)",
+      "Bash(git -C /Users/juandavidguerrerocastro/Documents/PROJECTS/MUSIC_DEVICES/EDRUM/groove_drum log --oneline)"
     ],
     "deny": [],
     "ask": []

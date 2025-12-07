@@ -29,6 +29,9 @@ struct PadCalibrationData {
 
 static PadCalibrationData padData[4];
 
+// Forward declaration
+static void finishCalibration();
+
 // ============================================================================
 // START/STOP CALIBRATION
 // ============================================================================
@@ -81,16 +84,16 @@ void update() {
     PadCalibrationData& data = padData[currentPad];
 
     // Get current detector state
-    const TriggerDetector::PadState& state = TriggerDetector::getPadState(currentPad);
+    const PadState& state = triggerDetector.getPadState(currentPad);
 
     // Phase transitions
     switch (currentPhase) {
-        case PHASE_BASELINE:
+        case PHASE_BASELINE: {
             // Collect baseline for 10 seconds
-            data.baselineSum += state.baseline;
+            data.baselineSum += state.baselineValue;
             data.baselineCount++;
 
-            uint16_t noise = abs((int16_t)state.signal);
+            uint16_t noise = 0;  // Placeholder (no raw signal here)
             if (noise < data.noiseMin) data.noiseMin = noise;
             if (noise > data.noiseMax) data.noiseMax = noise;
 
@@ -116,10 +119,11 @@ void update() {
                 }
             }
             break;
+        }
 
-        case PHASE_SOFT_HITS:
+        case PHASE_SOFT_HITS: {
             // Detect soft hits
-            if (state.state == TriggerDetector::STATE_PEAK_DETECTED) {
+            if (state.state == STATE_DECAY || state.state == STATE_RISING) {
                 data.hitCount++;
                 if (state.peakValue < data.softHitMin) {
                     data.softHitMin = state.peakValue;
@@ -144,10 +148,11 @@ void update() {
                 data.hitCount = 0;  // Reset for hard hits
             }
             break;
+        }
 
-        case PHASE_HARD_HITS:
+        case PHASE_HARD_HITS: {
             // Detect hard hits
-            if (state.state == TriggerDetector::STATE_PEAK_DETECTED) {
+            if (state.state == STATE_DECAY || state.state == STATE_RISING) {
                 data.hitCount++;
                 if (state.peakValue > data.hardHitMax) {
                     data.hardHitMax = state.peakValue;
@@ -160,6 +165,7 @@ void update() {
                 finishCalibration();
             }
             break;
+        }
 
         default:
             break;

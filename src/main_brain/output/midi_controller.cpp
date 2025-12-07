@@ -1,5 +1,9 @@
 #include "midi_controller.h"
 
+#include <edrum_config.h>
+#include <tusb.h>
+#include "class/midi/midi_device.h"
+
 namespace MIDIController {
 
 // ============================================================================
@@ -8,34 +12,40 @@ namespace MIDIController {
 
 static bool initialized = false;
 
-// Queue para note offs programados
-#define MAX_NOTE_OFFS 8
+constexpr uint8_t MAX_NOTE_OFFS = 16;
 static NoteOffEvent noteOffQueue[MAX_NOTE_OFFS];
 static uint8_t noteOffCount = 0;
 
 // ============================================================================
-// HELPER FUNCTIONS - TinyUSB MIDI Packet Construction
+// HELPERS
 // ============================================================================
 
-// Crear un MIDI packet de 4 bytes para TinyUSB
-// Formato: [cable_number + code_index_number, MIDI_0, MIDI_1, MIDI_2]
-static void sendMIDIPacket(uint8_t status, uint8_t data1, uint8_t data2) {
-    if (!initialized) return;
+static uint8_t clampChannel(uint8_t ch) {
+    if (ch < 1) return 1;
+    if (ch > 16) return 16;
+    return ch;
+}
 
-    uint8_t packet[4];
+static bool sendMidiPacket(uint8_t cin, uint8_t status, uint8_t data1, uint8_t data2) {
+    if (!initialized || !tud_midi_mounted()) return false;
 
-    // Byte 0: Cable Number (upper 4 bits) + Code Index Number (lower 4 bits)
-    // Code Index Number para Note On/Off = 0x9 (note on) o 0x8 (note off)
-    uint8_t cin = (status & 0xF0) >> 4;  // Extraer el nibble superior del status
-    packet[0] = (MIDI_CABLE_NUM << 4) | cin;
+    uint8_t packet[4] = {
+        static_cast<uint8_t>((cin << 4) | 0),  // Cable 0 + CIN
+        status,
+        static_cast<uint8_t>(data1 & 0x7F),
+        static_cast<uint8_t>(data2 & 0x7F)
+    };
 
-    // Bytes 1-3: MIDI message estándar
-    packet[1] = status;
-    packet[2] = data1;
-    packet[3] = data2;
+    return tud_midi_packet_write(packet);
+}
 
-    // Enviar packet via TinyUSB
-    tud_midi_packet_write(packet);
+static void logRxPacket(const uint8_t packet[4]) {
+#ifdef DEBUG_MIDI_MESSAGES
+    Serial.printf("[MIDI RX] %02X %02X %02X %02X\n",
+                  packet[0], packet[1], packet[2], packet[3]);
+#else
+    (void)packet;
+#endif
 }
 
 // ============================================================================
@@ -43,84 +53,112 @@ static void sendMIDIPacket(uint8_t status, uint8_t data1, uint8_t data2) {
 // ============================================================================
 
 void begin() {
-    // Initialize USB subsystem
-    USB.begin();
+    if (initialized) return;
 
-    // Wait for USB to be ready
-    delay(100);
+    // Espera breve a que TinyUSB esté listo
+    uint32_t start = millis();
+    while (!tud_inited() && (millis() - start < 2000)) {
+        delay(10);
+    }
 
     initialized = true;
     noteOffCount = 0;
 
-    Serial.println("[MIDI] USB MIDI controller initialized");
-    Serial.println("[MIDI] Device: ESP32-S3 E-Drum Controller");
-    Serial.println("[MIDI] Connection: Native USB MIDI via TinyUSB");
-    Serial.println("[MIDI] Protocol: USB MIDI Class (no adapter needed)");
-    Serial.printf("[MIDI] Channel: %d\n", MIDI_CHANNEL + 1);
-    Serial.printf("[MIDI] Note off duration: %d ms\n", NOTE_OFF_DURATION);
-    Serial.println("[MIDI] Connect USB cable to computer to use");
-    Serial.println("[MIDI] The device will appear as 'TinyUSB Device' in your DAW");
+    Serial.println("[MIDI] USB MIDI listo (TinyUSB nativo)");
+    Serial.printf("[MIDI] Canal por defecto: %u\n", MIDI_CHANNEL);
 }
 
 // ============================================================================
-// MIDI OUTPUT
+// NOTE ON / NOTE OFF
 // ============================================================================
 
 void sendNoteOn(uint8_t note, uint8_t velocity) {
+    sendNoteOn(MIDI_CHANNEL, note, velocity);
+}
+
+void sendNoteOn(uint8_t channel, uint8_t note, uint8_t velocity) {
     if (!initialized) return;
-    if (!tud_midi_mounted()) return;  // Solo enviar si USB está conectado
 
-    // MIDI Note On: status = 0x90 | channel
-    uint8_t status = 0x90 | (MIDI_CHANNEL & 0x0F);
-    sendMIDIPacket(status, note & 0x7F, velocity & 0x7F);
+    uint8_t ch = clampChannel(channel);
+    uint8_t status = 0x90 | (ch - 1);
 
-    // Schedule Note Off
+    sendMidiPacket(0x09, status, note, velocity);
+
     if (noteOffCount < MAX_NOTE_OFFS) {
-        noteOffQueue[noteOffCount].note = note;
-        noteOffQueue[noteOffCount].offTime = millis() + NOTE_OFF_DURATION;
+        noteOffQueue[noteOffCount] = {note, ch, millis() + NOTE_OFF_DURATION};
         noteOffCount++;
     }
 
-    #ifdef DEBUG_MIDI
-    Serial.printf("[MIDI] Note On: %d, Velocity: %d\n", note, velocity);
-    #endif
+#ifdef DEBUG_MIDI_MESSAGES
+    Serial.printf("[MIDI TX] NoteOn ch=%u note=%u vel=%u\n", ch, note, velocity);
+#endif
 }
 
 void sendNoteOff(uint8_t note) {
+    sendNoteOff(MIDI_CHANNEL, note);
+}
+
+void sendNoteOff(uint8_t channel, uint8_t note) {
     if (!initialized) return;
-    if (!tud_midi_mounted()) return;  // Solo enviar si USB está conectado
 
-    // MIDI Note Off: status = 0x80 | channel
-    uint8_t status = 0x80 | (MIDI_CHANNEL & 0x0F);
-    sendMIDIPacket(status, note & 0x7F, 0);
+    uint8_t ch = clampChannel(channel);
+    uint8_t status = 0x80 | (ch - 1);
 
-    #ifdef DEBUG_MIDI
-    Serial.printf("[MIDI] Note Off: %d\n", note);
-    #endif
+    sendMidiPacket(0x08, status, note, 0);
+
+#ifdef DEBUG_MIDI_MESSAGES
+    Serial.printf("[MIDI TX] NoteOff ch=%u note=%u\n", ch, note);
+#endif
 }
 
 // ============================================================================
-// UPDATE (process scheduled note offs)
+// CONTROL CHANGE
+// ============================================================================
+
+void sendControlChange(uint8_t control, uint8_t value) {
+    sendControlChange(MIDI_CHANNEL, control, value);
+}
+
+void sendControlChange(uint8_t channel, uint8_t control, uint8_t value) {
+    if (!initialized) return;
+
+    uint8_t ch = clampChannel(channel);
+    uint8_t status = 0xB0 | (ch - 1);
+
+    sendMidiPacket(0x0B, status, control, value);
+
+#ifdef DEBUG_MIDI_MESSAGES
+    Serial.printf("[MIDI TX] CC ch=%u ctrl=%u val=%u\n", ch, control, value);
+#endif
+}
+
+// ============================================================================
+// UPDATE LOOP
 // ============================================================================
 
 void update() {
-    if (!initialized || noteOffCount == 0) return;
+    if (!initialized) return;
 
-    uint32_t now = millis();
-
-    // Check for notes that need to be turned off
-    for (uint8_t i = 0; i < noteOffCount; i++) {
-        if (now >= noteOffQueue[i].offTime) {
-            // Send note off
-            sendNoteOff(noteOffQueue[i].note);
-
-            // Remove from queue (shift array)
-            for (uint8_t j = i; j < noteOffCount - 1; j++) {
-                noteOffQueue[j] = noteOffQueue[j + 1];
+    // Procesar note-offs programados
+    if (noteOffCount > 0) {
+        uint32_t now = millis();
+        for (uint8_t i = 0; i < noteOffCount; ) {
+            if (now >= noteOffQueue[i].offTime) {
+                sendNoteOff(noteOffQueue[i].channel, noteOffQueue[i].note);
+                for (uint8_t j = i; j < noteOffCount - 1; j++) {
+                    noteOffQueue[j] = noteOffQueue[j + 1];
+                }
+                noteOffCount--;
+            } else {
+                ++i;
             }
-            noteOffCount--;
-            i--;  // Recheck this position
         }
+    }
+
+    // Leer MIDI entrante (solo log)
+    uint8_t packet[4];
+    while (tud_midi_available() && tud_midi_packet_read(packet)) {
+        logRxPacket(packet);
     }
 }
 
