@@ -77,7 +77,6 @@ uint16_t calibrationMins[4] = {4095, 4095, 4095, 4095};
 uint32_t totalHitsDetected = 0;
 bool audioEngineInitialized = false;
 bool samplesLoaded = false;
-uint32_t detectorEnableTimeMs = 0;
 
 // ============================================================
 // FORWARD DECLARATIONS
@@ -140,13 +139,8 @@ void setup() {
 
     Serial.println("\n[System] Initializing trigger detection...");
     triggerScanner.begin(hitEventQueue);
-    delay(1500);
-    triggerDetector.resetAll();
-    HitEvent dummyEvent;
-    while (xQueueReceive(hitEventQueue, &dummyEvent, 0) == pdTRUE) {}
     startTriggerScanner();
     Serial.println("[Scanner] High-precision scanner started (esp_timer @ 2kHz)");
-    detectorEnableTimeMs = millis() + 1500;
 
     Serial.println("\n[LED] Initializing NeoPixels...");
     NeoPixelController::begin();
@@ -212,9 +206,6 @@ void processHitEvents() {
     HitEvent event;
 
     while (xQueueReceive(hitEventQueue, &event, 0) == pdTRUE) {
-        if (millis() < detectorEnableTimeMs) {
-            continue;
-        }
         totalHitsDetected++;
 
         uint8_t velocity = CLAMP(event.velocity, 1, 127);
