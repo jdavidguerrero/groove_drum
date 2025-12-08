@@ -28,6 +28,7 @@
 #include "output/midi_controller.h"
 #include "output/audio_engine.h"
 #include "output/audio_samples.h"
+#include "core/event_dispatcher.h"
 
 // ============================================================
 // CONFIG ARRAY DEFINITIONS (from edrum_config.h)
@@ -91,6 +92,7 @@ void printDetectorState();
 void startCalibration();
 void processCalibration();
 void checkADCSafety(uint16_t value, uint8_t padId);
+void queueSamplePlayback(const char* name, uint8_t velocity = 120);
 
 // ============================================================
 // SETUP
@@ -114,7 +116,7 @@ void setup() {
     MIDIController::begin();
 
     Serial.println("[AUDIO] Initializing audio engine...");
-    /*
+    
     audioEngineInitialized = AudioEngine::begin();
     if (audioEngineInitialized) {
         size_t loaded = SampleManager::beginAndLoadDefaults();
@@ -127,7 +129,10 @@ void setup() {
     } else {
         Serial.println("[AUDIO] Audio engine init failed");
     }
-*/
+
+    Serial.println("[Dispatcher] Initializing subsystems...");
+    EventDispatcher::begin();
+
     setupHardware();
 
     hitEventQueue = xQueueCreate(QUEUE_SIZE_HIT_EVENTS, sizeof(HitEvent));
@@ -248,14 +253,16 @@ void handleSerialCommands() {
             Serial.println("✅ Sistema reseteado\n");
             break;
         case 'a': case 'A':
-            if (!audioEngineInitialized || !samplesLoaded) {
-                Serial.println("[AUDIO] Motor sin inicializar o sin samples cargados");
-            } else {
-                Serial.println("[AUDIO] Reproduciendo sample de prueba (kick)...");
-                if (!SampleManager::playSample(SAMPLE_PATH_KICK, 120, 100)) {
-                    Serial.println("[AUDIO] Error al reproducir kick.wav");
-                }
-            }
+            queueSamplePlayback(SAMPLE_PATH_KICK, 120);
+            break;
+        case '1':
+            queueSamplePlayback(SAMPLE_PATH_SNARE, 120);
+            break;
+        case '2':
+            queueSamplePlayback(SAMPLE_PATH_HIHAT, 120);
+            break;
+        case '3':
+            queueSamplePlayback(SAMPLE_PATH_TOM, 120);
             break;
         case 'h': case 'H': printHelp(); break;
         default: break;
@@ -433,4 +440,20 @@ void checkADCSafety(uint16_t value, uint8_t padId) {
                       PAD_NAMES[padId], value, ADC_SAFETY_LIMIT);
         Serial.println("⚠️  ACCIÓN: Verificar circuitos de protección!\n");
     }
+}
+
+void queueSamplePlayback(const char* name, uint8_t velocity) {
+    if (!audioEngineInitialized || !samplesLoaded) {
+        Serial.println("[AUDIO] Motor o samples no inicializados");
+        return;
+    }
+
+    AudioRequest req = {};
+    if (name) {
+        strncpy(req.sampleName, name, sizeof(req.sampleName) - 1);
+    }
+    req.velocity = velocity;
+    req.volume = 127;
+    req.pitch = 0;
+    EventDispatcher::dispatchAudio(req);
 }

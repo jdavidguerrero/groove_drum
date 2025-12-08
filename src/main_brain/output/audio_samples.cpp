@@ -155,7 +155,9 @@ size_t loadedCount() {
 
 bool playSample(const char* name, uint8_t velocity, uint8_t volume) {
     const Sample* s = getSample(name);
-    if (!s || !s->data || s->frames == 0) return false;
+    if (!s || !s->data || s->frames == 0) {
+        return false;
+    }
 
     // Re-sample: si sampleRate != I2S rate, ignoramos y reproducimos tal cual (pequeño pitch drift).
     float scale = (velocity / 127.0f) * (volume / 127.0f);

@@ -22,6 +22,7 @@
 
 #include <Arduino.h>
 #include <edrum_config.h>
+#include "hit_event.h"
 
 // ============================================================
 // TRIGGER STATE MACHINE
@@ -57,19 +58,6 @@ struct PadState {
         baselineValue(BASELINE_INITIAL_VALUE),
         lastVelocity(0),
         risingStartTime(0) {}
-};
-
-/**
- * @brief Hit event data structure
- */
-struct HitEvent {
-    uint8_t padId;
-    uint8_t velocity;
-    uint32_t timestamp;
-
-    HitEvent() : padId(0), velocity(0), timestamp(0) {}
-    HitEvent(uint8_t id, uint8_t vel, uint32_t time) :
-        padId(id), velocity(vel), timestamp(time) {}
 };
 
 // ============================================================

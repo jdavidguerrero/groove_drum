@@ -6,19 +6,14 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+#include "../input/hit_event.h"
+
+
 // ============================================================================
 // EVENT DISPATCHER - NON-BLOCKING ARCHITECTURE
 // ============================================================================
 // Routes hit events to multiple subsystems without blocking the scanner
 // Uses separate FreeRTOS tasks for each heavy operation
-
-// Event structure from trigger detector
-struct HitEvent {
-    uint8_t padId;
-    uint8_t velocity;
-    uint32_t timestamp;
-    uint16_t peakValue;
-};
 
 // LED animation request
 struct LEDRequest {
@@ -57,7 +52,6 @@ public:
     static void processEvents();
 
     // Manual dispatch (for testing)
-    static void dispatchHit(const HitEvent& event);
     static void dispatchLED(const LEDRequest& request);
     static void dispatchAudio(const AudioRequest& request);
     static void dispatchMIDI(const MIDIRequest& request);
