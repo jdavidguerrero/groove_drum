@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <cstring>
+#include <edrum_config.h>
 
 // ============================================================================
 // PAD CONFIGURATION STRUCTURE
@@ -31,7 +32,7 @@ struct PadConfig {
     // === AUDIO/MIDI ===
     uint8_t midiNote;            // MIDI note number (0-127)
     uint8_t midiChannel;         // MIDI channel (1-16)
-    char sampleName[32];         // Sample filename (e.g., "kick_001.wav")
+    char sampleName[32];         // Sample filename (full path)
     uint8_t sampleVolume;        // Volume (0-100)
     int8_t samplePitch;          // Pitch shift in semitones (-12 to +12)
 
@@ -72,7 +73,7 @@ inline PadConfig makeKickConfig() {
     cfg.minRetriggerMs = 20;
     cfg.midiNote = 36;
     cfg.midiChannel = 10;
-    std::strncpy(cfg.sampleName, "kick_001.wav", sizeof(cfg.sampleName));
+    std::strncpy(cfg.sampleName, SAMPLE_PATH_KICK, sizeof(cfg.sampleName));
     cfg.sampleName[sizeof(cfg.sampleName) - 1] = '\0';
     cfg.sampleVolume = 100;
     cfg.samplePitch = 0;
@@ -106,7 +107,7 @@ inline PadConfig makeSnareConfig() {
     cfg.minRetriggerMs = 15;
     cfg.midiNote = 38;
     cfg.midiChannel = 10;
-    std::strncpy(cfg.sampleName, "snare_001.wav", sizeof(cfg.sampleName));
+    std::strncpy(cfg.sampleName, SAMPLE_PATH_SNARE, sizeof(cfg.sampleName));
     cfg.sampleName[sizeof(cfg.sampleName) - 1] = '\0';
     cfg.sampleVolume = 95;
     cfg.samplePitch = 0;
@@ -141,7 +142,7 @@ inline PadConfig makeHiHatConfig() {
     cfg.minRetriggerMs = 10;
     cfg.midiNote = 42;
     cfg.midiChannel = 10;
-    std::strncpy(cfg.sampleName, "hihat_closed_001.wav", sizeof(cfg.sampleName));
+    std::strncpy(cfg.sampleName, SAMPLE_PATH_HIHAT, sizeof(cfg.sampleName));
     cfg.sampleName[sizeof(cfg.sampleName) - 1] = '\0';
     cfg.sampleVolume = 85;
     cfg.samplePitch = 0;
@@ -176,7 +177,7 @@ inline PadConfig makeTomConfig() {
     cfg.minRetriggerMs = 15;
     cfg.midiNote = 48;
     cfg.midiChannel = 10;
-    std::strncpy(cfg.sampleName, "tom_001.wav", sizeof(cfg.sampleName));
+    std::strncpy(cfg.sampleName, SAMPLE_PATH_TOM, sizeof(cfg.sampleName));
     cfg.sampleName[sizeof(cfg.sampleName) - 1] = '\0';
     cfg.sampleVolume = 90;
     cfg.samplePitch = 0;

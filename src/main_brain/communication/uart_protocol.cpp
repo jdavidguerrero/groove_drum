@@ -13,10 +13,15 @@ uint32_t UARTProtocol::errorCount = 0;
 // INITIALIZATION
 // ============================================================================
 
-void UARTProtocol::begin(HardwareSerial& serial, uint32_t baudrate) {
+void UARTProtocol::begin(HardwareSerial& serial, uint32_t baudrate, int8_t rxPin, int8_t txPin) {
     uart = &serial;
-    uart->begin(baudrate);
+    uart->end();
     uart->setRxBufferSize(1024);  // Larger buffer for config messages
+    if (rxPin >= 0 || txPin >= 0) {
+        uart->begin(baudrate, SERIAL_8N1, rxPin, txPin);
+    } else {
+        uart->begin(baudrate);
+    }
     Serial.printf("[UART] Protocol initialized at %d baud\n", baudrate);
 }
 

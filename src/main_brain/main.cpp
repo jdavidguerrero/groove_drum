@@ -24,11 +24,13 @@
 #include <edrum_config.h>
 #include "input/trigger_scanner.h"
 #include "input/trigger_detector.h"
+#include "pad_config.h"
 #include "ui/neopixel_controller.h"
 #include "output/midi_controller.h"
 #include "output/audio_engine.h"
 #include "output/audio_samples.h"
 #include "core/event_dispatcher.h"
+#include "communication/uart_protocol.h"
 
 // ============================================================
 // CONFIG ARRAY DEFINITIONS (from edrum_config.h)
@@ -93,6 +95,7 @@ void startCalibration();
 void processCalibration();
 void checkADCSafety(uint16_t value, uint8_t padId);
 void queueSamplePlayback(const char* name, uint8_t velocity = 120);
+void queuePadSample(uint8_t padId, uint8_t velocity);
 
 // ============================================================
 // SETUP
@@ -109,8 +112,13 @@ void setup() {
     Serial.println("╚═══════════════════════════════════════════════╝");
     Serial.println();
     Serial.printf("Build: %s %s\n", __DATE__, __TIME__);
-    Serial.printf("Firmware: %s\n", FIRMWARE_VERSION);
-    Serial.println();
+   Serial.printf("Firmware: %s\n", FIRMWARE_VERSION);
+   Serial.println();
+
+    PadConfigManager::init();
+
+    Serial.println("[UART] Initializing display link...");
+    UARTProtocol::begin(Serial2, UART_BAUD, UART_RX_PIN, UART_TX_PIN);
 
     Serial.println("[MIDI] Initializing USB MIDI...");
     MIDIController::begin();
@@ -171,6 +179,7 @@ void setup() {
 // ============================================================
 
 void loop() {
+    UARTProtocol::processIncoming();
     processHitEvents();
     MIDIController::update();
     NeoPixelController::update();
@@ -229,7 +238,7 @@ void processHitEvents() {
         uint8_t brightness = map(velocity, 0, 127, 100, 255);
         NeoPixelController::flashPad(event.padId, hitColor, brightness, 300);
 
-        // TODO: Play audio sample
+        queuePadSample(event.padId, velocity);
     }
 }
 
@@ -456,4 +465,9 @@ void queueSamplePlayback(const char* name, uint8_t velocity) {
     req.volume = 127;
     req.pitch = 0;
     EventDispatcher::dispatchAudio(req);
+}
+
+void queuePadSample(uint8_t padId, uint8_t velocity) {
+    PadConfig& cfg = PadConfigManager::getConfig(padId % NUM_PADS);
+    queueSamplePlayback(cfg.sampleName, velocity);
 }

@@ -81,8 +81,8 @@ extern const char* PAD_NAMES[4];
 #define LEDS_PER_ENCODER   12  // LEDs per encoder ring
 
 // UART Communication to MCU #2
-#define UART_TX_PIN 43
-#define UART_RX_PIN 44
+#define UART_TX_PIN 2    // TX hacia display (antes 43)
+#define UART_RX_PIN 1    // RX desde display (antes 44)
 #define UART_BAUD   921600
 
 // ============================================================
@@ -92,12 +92,24 @@ extern const char* PAD_NAMES[4];
 #ifdef MCU_DISPLAY
 
 // TFT Display (GC9A01)
+#ifndef TFT_MOSI
 #define TFT_MOSI       11
+#endif
+#ifndef TFT_SCLK
 #define TFT_SCLK       12
+#endif
+#ifndef TFT_CS
 #define TFT_CS         10
+#endif
+#ifndef TFT_DC
 #define TFT_DC         8
+#endif
+#ifndef TFT_RST
 #define TFT_RST        14
+#endif
+#ifndef TFT_BACKLIGHT
 #define TFT_BACKLIGHT  2
+#endif
 
 // Touch Controller (CST816S I2C)
 #define TOUCH_SDA 6
@@ -106,12 +118,12 @@ extern const char* PAD_NAMES[4];
 #define TOUCH_RST 13
 
 // LED Ring (WS2812B x12)
-#define LED_RING_PIN     15
+#define LED_RING_PIN     18  // Display MCU drives 12-pixel NeoPixel ring
 #define NUM_LEDS_RING    12
 
 // UART from MCU #1
-#define UART_RX_DISPLAY  33
-#define UART_TX_DISPLAY  21
+#define UART_RX_DISPLAY  16  // RX (display) connected to main TX (GPIO 2)
+#define UART_TX_DISPLAY  17  // TX (display) connected to main RX (GPIO 1)
 
 #endif // MCU_DISPLAY
 
@@ -281,7 +293,7 @@ enum ButtonState {
 // VERSION INFORMATION
 // ============================================================
 
-#define FIRMWARE_VERSION "1.0.0"
+#define FIRMWARE_VERSION "0.0.8"
 #define FIRMWARE_BUILD_DATE __DATE__
 #define FIRMWARE_BUILD_TIME __TIME__
 

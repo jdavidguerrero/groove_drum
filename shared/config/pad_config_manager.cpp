@@ -10,6 +10,14 @@ PadConfig PadConfigManager::configs[8];
 // ============================================================================
 
 void PadConfigManager::init() {
+    // Ensure namespace exists (creates if missing)
+    Preferences initPrefs;
+    if (!initPrefs.begin("edrum", false)) {
+        Serial.println("[CONFIG] Failed to open NVS namespace");
+        return;
+    }
+    initPrefs.end();
+
     // Load from NVS, or use defaults if not found
     if (!loadFromNVS()) {
         Serial.println("[CONFIG] No saved config found, using defaults");
@@ -33,6 +41,11 @@ bool PadConfigManager::loadFromNVS() {
     for (uint8_t i = 0; i < 4; i++) {  // Load 4 pads
         char key[16];
         snprintf(key, sizeof(key), "pad%d", i);
+
+        if (!prefs.isKey(key)) {
+            success = false;
+            break;
+        }
 
         size_t len = prefs.getBytesLength(key);
         if (len == sizeof(PadConfig)) {

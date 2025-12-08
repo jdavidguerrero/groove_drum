@@ -1,8 +1,12 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include <lvgl.h>
+#include <edrum_config.h>
+#include <SPI.h>
 
 #include "ui/ui_manager.h"
+#include "comm/uart_link.h"
+#include "drivers/ring_led_controller.h"
 
 static const uint16_t kScreenWidth = 240;
 static const uint16_t kScreenHeight = 240;
@@ -14,6 +18,7 @@ static lv_color_t buf1[kScreenWidth * 60];  // ~28 KB line buffer
 static lv_disp_drv_t disp_drv;
 
 static TFT_eSPI tft = TFT_eSPI(kScreenWidth, kScreenHeight);
+HardwareSerial SerialLink(1);
 
 // LVGL display flush callback for TFT_eSPI (LVGL 8.3.x API)
 void my_disp_flush(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p) {
@@ -37,6 +42,12 @@ void setup() {
     Serial.println("=== E-Drum Display MCU Init ===");
     Serial.println("=================================");
     Serial.flush();
+
+    // Force HSPI pin assignment to avoid default-pin warning on S3
+    SPI.begin(TFT_SCLK, -1, TFT_MOSI, -1);
+
+    Serial.println("[UART] Configurando enlace serie con Main Brain...");
+    display::comm::UARTLink::begin(SerialLink, UART_BAUD);
 
     // Step 1: Backlight init
     Serial.println("[1/6] Initializing backlight...");
@@ -112,43 +123,14 @@ void setup() {
     ui::UIManager::instance().init();
     Serial.println("UI Manager initialized - Ready!");
     Serial.flush();
+
+    display::RingLEDController::begin();
 }
 
 void loop() {
+    display::comm::UARTLink::process();
     lv_timer_handler();
     lv_tick_inc(5);
+    display::RingLEDController::update();
     delay(5);
-
-    // DEMO: Auto cycle through screens to show animations
-    static unsigned long lastScreenChange = 0;
-    static uint8_t currentScreenIndex = 0;
-
-    if (millis() - lastScreenChange > 5000) {  // Every 5 seconds
-        currentScreenIndex = (currentScreenIndex + 1) % 4;
-
-        ui::ViewId nextView;
-        switch (currentScreenIndex) {
-            case 0: nextView = ui::ViewId::Performance; break;
-            case 1: nextView = ui::ViewId::Mixer; break;
-            case 2: nextView = ui::ViewId::PadEdit; break;
-            case 3: nextView = ui::ViewId::Settings; break;
-            default: nextView = ui::ViewId::Performance; break;
-        }
-
-        Serial.print("Transitioning to screen: ");
-        Serial.println(currentScreenIndex);
-        ui::UIManager::instance().setView(nextView);  // Uses animated=true by default
-        lastScreenChange = millis();
-    }
-
-    // DEMO: Simulate pad hits when on Performance screen
-    static unsigned long lastPadHit = 0;
-    if (ui::UIManager::instance().currentView() == ui::ViewId::Performance) {
-        if (millis() - lastPadHit > 400) {  // Hit every 400ms
-            uint8_t randomPad = random(0, 4);  // Random pad 0-3
-            uint8_t randomVelocity = random(40, 127);  // Random velocity 40-127
-            ui::UIManager::instance().onPadHit(randomPad, randomVelocity);
-            lastPadHit = millis();
-        }
-    }
 }

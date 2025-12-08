@@ -9,6 +9,7 @@
 #include "audio_samples.h"
 #include <driver/i2s.h>
 #include <algorithm>
+#include <cstring>
 
 // Static members
 QueueHandle_t EventDispatcher::hitQueue = nullptr;
@@ -22,106 +23,6 @@ TaskHandle_t EventDispatcher::midiTaskHandle = nullptr;
 
 volatile uint32_t EventDispatcher::processedCount = 0;
 volatile uint32_t EventDispatcher::droppedCount = 0;
-
-namespace {
-
-constexpr size_t AUDIO_CHUNK_FRAMES = 128;
-constexpr size_t AUDIO_MAX_VOICES = 4;
-const char* DEFAULT_PAD_SAMPLE_PATHS[NUM_PADS] = {
-    SAMPLE_PATH_KICK,
-    SAMPLE_PATH_SNARE,
-    SAMPLE_PATH_HIHAT,
-    SAMPLE_PATH_TOM
-};
-
-struct ActiveVoice {
-    const Sample* sample = nullptr;
-    uint32_t position = 0;
-    float gain = 0.0f;
-    uint8_t channels = 1;
-    bool active = false;
-};
-
-float computeGain(uint8_t velocity, uint8_t volume) {
-    float vel = std::max(1u, (unsigned)velocity) / 127.0f;
-    float vol = std::max(1u, (unsigned)volume) / 127.0f;
-    return std::max(0.01f, vel * vol);
-}
-
-void startVoice(const AudioRequest& request, ActiveVoice* voices) {
-    const Sample* sample = SampleManager::getSample(request.sampleName);
-    if (!sample || !sample->data || sample->frames == 0) {
-        return;
-    }
-
-    ActiveVoice* slot = nullptr;
-    for (size_t i = 0; i < AUDIO_MAX_VOICES; ++i) {
-        if (!voices[i].active) {
-            slot = &voices[i];
-            break;
-        }
-    }
-    if (!slot) {
-        slot = &voices[0];  // simple voice steal
-    }
-
-    slot->sample = sample;
-    slot->position = 0;
-    slot->gain = computeGain(request.velocity, request.volume);
-    slot->channels = sample->channels;
-    slot->active = true;
-}
-
-bool hasActiveVoices(const ActiveVoice* voices) {
-    for (size_t i = 0; i < AUDIO_MAX_VOICES; ++i) {
-        if (voices[i].active) return true;
-    }
-    return false;
-}
-
-void mixVoices(ActiveVoice* voices, int16_t* outBuf, size_t frames) {
-    for (size_t i = 0; i < frames; ++i) {
-        int32_t mixL = 0;
-        int32_t mixR = 0;
-
-        for (size_t v = 0; v < AUDIO_MAX_VOICES; ++v) {
-            ActiveVoice& voice = voices[v];
-            if (!voice.active || !voice.sample) continue;
-
-            if (voice.position >= voice.sample->frames) {
-                voice.active = false;
-                continue;
-            }
-
-            const int16_t* data = voice.sample->data;
-            int16_t left = 0;
-            int16_t right = 0;
-
-            if (voice.channels == 1) {
-                int16_t val = data[voice.position];
-                left = val;
-                right = val;
-            } else {
-                uint32_t idx = voice.position * 2;
-                left = data[idx];
-                right = data[idx + 1];
-            }
-
-            mixL += static_cast<int32_t>(left * voice.gain);
-            mixR += static_cast<int32_t>(right * voice.gain);
-
-            voice.position++;
-        }
-
-        mixL = std::max(-32768, std::min(32767, mixL));
-        mixR = std::max(-32768, std::min(32767, mixR));
-
-        outBuf[2 * i] = static_cast<int16_t>(mixL);
-        outBuf[2 * i + 1] = static_cast<int16_t>(mixR);
-    }
-}
-
-} // namespace
 
 // ============================================================================
 // INITIALIZATION
@@ -204,10 +105,8 @@ void EventDispatcher::processEvents() {
         }
 
         // 2. Dispatch to Audio (non-blocking)
-        AudioRequest audioReq;
-        const char* path = DEFAULT_PAD_SAMPLE_PATHS[event.padId % NUM_PADS];
-        strncpy(audioReq.sampleName, path, 31);
-        audioReq.sampleName[31] = '\0';
+        AudioRequest audioReq = {};
+        strncpy(audioReq.sampleName, cfg.sampleName, sizeof(audioReq.sampleName) - 1);
         audioReq.velocity = event.velocity;
         audioReq.volume = cfg.sampleVolume;
         audioReq.pitch = cfg.samplePitch;
@@ -226,12 +125,6 @@ void EventDispatcher::processEvents() {
         if (xQueueSend(midiQueue, &midiReq, 0) != pdTRUE) {
             droppedCount++;
         }
-
-        // Schedule MIDI note off after 50ms (typical drum note duration)
-        // This could be improved with a timer-based approach
-        MIDIRequest midiOffReq = midiReq;
-        midiOffReq.noteOn = false;
-        // TODO: Queue this with delay, or use separate timer
 
         // 4. Send telemetry to GUI (non-blocking)
         UARTProtocol::sendHitEvent(event.padId, event.velocity,
