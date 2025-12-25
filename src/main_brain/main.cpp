@@ -80,6 +80,7 @@ uint16_t calibrationMins[4] = {4095, 4095, 4095, 4095};
 uint32_t totalHitsDetected = 0;
 bool audioEngineInitialized = false;
 bool samplesLoaded = false;
+uint32_t lastStatusBroadcastMs = 0;
 
 // ============================================================
 // FORWARD DECLARATIONS
@@ -189,6 +190,11 @@ void loop() {
         processCalibration();
     }
 
+    if (millis() - lastStatusBroadcastMs > 1000) {
+        UARTProtocol::sendSystemStatus();
+        lastStatusBroadcastMs = millis();
+    }
+
     delay(1);
 }
 
@@ -239,6 +245,15 @@ void processHitEvents() {
         NeoPixelController::flashPad(event.padId, hitColor, brightness, 300);
 
         queuePadSample(event.padId, velocity);
+
+        UARTProtocol::sendHitEvent(event.padId, velocity, event.timestamp, event.peakValue);
+        const PadState& padState = triggerDetector.getPadState(event.padId);
+        UARTProtocol::sendPadState(
+            event.padId,
+            static_cast<uint8_t>(padState.state),
+            padState.peakValue,
+            padState.baselineValue,
+            event.peakValue);
     }
 }
 

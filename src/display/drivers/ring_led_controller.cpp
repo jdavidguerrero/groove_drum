@@ -12,6 +12,8 @@ constexpr CRGB kPadColors[4] = {
     CRGB(255, 255, 0),   // HiHat
     CRGB(0, 255, 100)    // Tom
 };
+constexpr uint8_t kPadSegmentWidth = 4;
+constexpr uint8_t kPadStartIndex[4] = {0, 3, 6, 9};
 uint32_t lastFadeMs = 0;
 }  // namespace
 
@@ -28,14 +30,14 @@ void RingLEDController::pulsePad(uint8_t padId, uint8_t velocity) {
         return;
     }
 
-    const uint8_t ledsPerPad = NUM_LEDS_RING / 4;
-    const uint8_t start = padId * ledsPerPad;
+    const uint8_t start = kPadStartIndex[padId % 4];
     const uint8_t level = constrain(map(velocity, 1, 127, 80, 255), 0, 255);
     const CRGB baseColor = kPadColors[padId];
 
-    for (uint8_t i = 0; i < ledsPerPad; ++i) {
-        leds[start + i] = baseColor;
-        leds[start + i].nscale8_video(level);
+    for (uint8_t i = 0; i < kPadSegmentWidth; ++i) {
+        uint8_t idx = (start + i) % NUM_LEDS_RING;
+        leds[idx] = baseColor;
+        leds[idx].nscale8_video(level);
     }
     FastLED.show();
 }

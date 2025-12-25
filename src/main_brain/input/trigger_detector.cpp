@@ -232,7 +232,12 @@ void TriggerDetector::sendHitEvent(uint8_t padId, uint8_t velocity, uint32_t tim
         return;
     }
 
-    HitEvent event(padId, velocity, timestamp);
+    uint16_t peak = 0;
+    if (padId < NUM_PADS) {
+        peak = padStates[padId].peakValue;
+    }
+
+    HitEvent event(padId, velocity, timestamp, peak);
 
     // Send to queue (don't block if queue is full)
     BaseType_t result = xQueueSend(hitEventQueue, &event, 0);

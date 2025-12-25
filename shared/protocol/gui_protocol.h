@@ -5,7 +5,7 @@
 
 // Basic framing constants shared between MCUs
 #define UART_START_BYTE 0xAA
-#define UART_MAX_PAYLOAD 512
+#define UART_MAX_PAYLOAD 2048
 #define UART_TIMEOUT_MS 100
 
 // Message types (bidirectional)

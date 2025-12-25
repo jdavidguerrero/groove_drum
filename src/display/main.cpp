@@ -125,6 +125,7 @@ void setup() {
     Serial.flush();
 
     display::RingLEDController::begin();
+    display::comm::UARTLink::requestConfigDump();
 }
 
 void loop() {

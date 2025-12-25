@@ -5,18 +5,34 @@
 
 #include "../ui/ui_manager.h"
 #include "../drivers/ring_led_controller.h"
+#include "link_state.h"
 
 namespace display::comm {
 namespace {
 HardwareSerial* linkSerial = nullptr;
 uint8_t rxBuffer[UART_MAX_PAYLOAD];
+
+void handleConfigJsonPayload(const uint8_t* payload, uint16_t length) {
+    if (!payload || length == 0) {
+        return;
+    }
+
+    String json;
+    json.reserve(length + 1);
+    for (uint16_t i = 0; i < length; ++i) {
+        json += static_cast<char>(payload[i]);
+    }
+
+    LinkState::updateConfigJSON(json.c_str());
+}
 }  // namespace
 
 void UARTLink::begin(HardwareSerial& serial, uint32_t baudrate) {
     linkSerial = &serial;
     linkSerial->end();
-    linkSerial->setRxBufferSize(1024);
+    linkSerial->setRxBufferSize(4096);
     linkSerial->begin(baudrate, SERIAL_8N1, UART_RX_DISPLAY, UART_TX_DISPLAY);
+    LinkState::init();
     Serial.printf("[UART] Display link up @ %lu baud\n", static_cast<unsigned long>(baudrate));
 }
 
@@ -104,6 +120,45 @@ uint16_t UARTLink::calculateCRC16(const uint8_t* data, uint16_t length, uint16_t
     return crc;
 }
 
+bool UARTLink::sendMessage(uint8_t msgType, const uint8_t* payload, uint16_t length) {
+    if (!linkSerial || length > UART_MAX_PAYLOAD) {
+        return false;
+    }
+
+    uint8_t header[4];
+    header[0] = UART_START_BYTE;
+    header[1] = msgType;
+    header[2] = (length >> 8) & 0xFF;
+    header[3] = length & 0xFF;
+
+    uint16_t crc = calculateCRC16(header, 4);
+    if (length > 0 && payload) {
+        crc = calculateCRC16(payload, length, crc);
+    }
+
+    linkSerial->write(header, 4);
+    if (length > 0 && payload) {
+        linkSerial->write(payload, length);
+    }
+    linkSerial->write((crc >> 8) & 0xFF);
+    linkSerial->write(crc & 0xFF);
+    return true;
+}
+
+bool UARTLink::sendCommand(uint8_t cmdType, const void* payload, uint16_t length) {
+    const uint8_t* rawPayload = static_cast<const uint8_t*>(payload);
+    if (length > 0 && payload == nullptr) {
+        return false;
+    }
+    return sendMessage(cmdType, rawPayload, length);
+}
+
+void UARTLink::requestConfigDump() {
+    if (sendCommand(CMD_GET_CONFIG)) {
+        Serial.println("[UART] Requested configuration dump from main brain");
+    }
+}
+
 void UARTLink::handleMessage(uint8_t msgType, const uint8_t* payload, uint16_t length) {
     switch (msgType) {
         case MSG_HIT_EVENT:
@@ -114,7 +169,55 @@ void UARTLink::handleMessage(uint8_t msgType, const uint8_t* payload, uint16_t l
             }
             break;
 
+        case MSG_PAD_STATE:
+            if (length == sizeof(PadStateMsg)) {
+                const PadStateMsg* state = reinterpret_cast<const PadStateMsg*>(payload);
+                LinkState::updatePadState(*state);
+            }
+            break;
+
+        case MSG_SYSTEM_STATUS:
+            if (length == sizeof(SystemStatusMsg)) {
+                const SystemStatusMsg* status = reinterpret_cast<const SystemStatusMsg*>(payload);
+                LinkState::updateSystemStatus(*status);
+            }
+            break;
+
+        case MSG_CONFIG_UPDATE:
+        case MSG_CONFIG_DUMP:
+            handleConfigJsonPayload(payload, length);
+            break;
+
+        case MSG_CALIBRATION_DATA:
+            if (length == sizeof(CalibrationDataMsg)) {
+                const CalibrationDataMsg* data = reinterpret_cast<const CalibrationDataMsg*>(payload);
+                Serial.printf("[UART] Calibration pad %u: baseline=%u noise=%u suggested=%u\n",
+                              data->padId,
+                              data->baseline,
+                              data->noiseFloor,
+                              data->suggestedThreshold);
+            }
+            break;
+
+        case MSG_ACK:
+            if (length >= 1) {
+                Serial.printf("[UART] ACK for command 0x%02X\n", payload[0]);
+            } else {
+                Serial.println("[UART] ACK received");
+            }
+            break;
+
+        case MSG_NACK:
+            if (length >= 1) {
+                const char* reason = (length > 1) ? reinterpret_cast<const char*>(&payload[1]) : "";
+                Serial.printf("[UART] NACK for command 0x%02X: %s\n", payload[0], reason);
+            } else {
+                Serial.println("[UART] NACK received");
+            }
+            break;
+
         default:
+            Serial.printf("[UART] Unhandled message 0x%02X (len=%u)\n", msgType, length);
             break;
     }
 }

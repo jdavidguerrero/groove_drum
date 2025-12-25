@@ -16,7 +16,7 @@ uint32_t UARTProtocol::errorCount = 0;
 void UARTProtocol::begin(HardwareSerial& serial, uint32_t baudrate, int8_t rxPin, int8_t txPin) {
     uart = &serial;
     uart->end();
-    uart->setRxBufferSize(1024);  // Larger buffer for config messages
+    uart->setRxBufferSize(4096);  // Larger buffer for config messages
     if (rxPin >= 0 || txPin >= 0) {
         uart->begin(baudrate, SERIAL_8N1, rxPin, txPin);
     } else {

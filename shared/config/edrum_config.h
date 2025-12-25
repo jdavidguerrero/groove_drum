@@ -37,8 +37,7 @@ extern const char* PAD_NAMES[4];
 
 // SD Card (SPI Interface)
 #define SD_CS_PIN   10
-//#define SD_MOSI_PIN 11 // final pin
-#define SD_MOSI_PIN 9
+#define SD_MOSI_PIN 11
 #define SD_MISO_PIN 13
 #define SD_SCK_PIN  12
 
