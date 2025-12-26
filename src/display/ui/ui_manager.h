@@ -2,6 +2,7 @@
 
 #include <lvgl.h>
 #include <cstdint>
+#include <gui_protocol.h>
 
 namespace ui {
 
@@ -9,7 +10,9 @@ enum class ViewId : uint8_t {
     Performance = 0,
     PadEdit = 1,
     Mixer = 2,
-    Settings = 3
+    Settings = 3,
+    SampleBrowser = 4,
+    ViewCount = 5
 };
 
 class UIScreen {
@@ -43,14 +46,23 @@ public:
     void onPadHit(uint8_t padId, uint8_t velocity);
     void onButton(uint8_t buttonId, uint8_t state);
 
+    // Menu state handlers from UART
+    void onMenuState(const MenuStateMsg& state);
+    void onSampleList(const SampleListMsg& samples);
+
+    // Show temporary toast notification
+    void showToast(const char* message, uint16_t durationMs = 1500);
+
 private:
     UIManager();
     void loadScreen(UIScreen *target, bool animated);
+    void hideToast();
 
-    UIScreen *screens[4];
+    UIScreen *screens[static_cast<int>(ViewId::ViewCount)];
     ViewId activeView;
     UIScreen *activeScreen;
     bool initialized;
+    lv_obj_t *toastBox;
 };
 
 }  // namespace ui

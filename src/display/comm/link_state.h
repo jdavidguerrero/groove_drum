@@ -46,16 +46,45 @@ struct PadConfigSnapshot {
     bool valid;
 };
 
+// Menu state snapshot from main brain
+struct MenuSnapshot {
+    uint8_t state;              // MenuStateType
+    uint8_t selectedPad;
+    uint8_t selectedOption;
+    bool editing;
+    bool hasChanges;
+    uint16_t currentValue;
+    char padName[12];
+    char optionName[16];
+    char sampleName[32];
+    uint32_t lastUpdateMs;
+    bool valid;
+};
+
+// Sample list snapshot
+struct SampleListSnapshot {
+    uint8_t totalCount;
+    uint8_t startIndex;
+    uint8_t count;
+    SampleEntryMsg samples[4];
+    uint32_t lastUpdateMs;
+    bool valid;
+};
+
 class LinkState {
 public:
     static void init();
     static void updatePadState(const PadStateMsg& msg);
     static void updateSystemStatus(const SystemStatusMsg& msg);
     static void updateConfigJSON(const char* json);
+    static void updateMenuState(const MenuStateMsg& msg);
+    static void updateSampleList(const SampleListMsg& msg);
 
     static const PadTelemetry& getPadTelemetry(uint8_t padId);
     static const SystemTelemetry& getSystemTelemetry();
     static const PadConfigSnapshot& getPadConfig(uint8_t padId);
+    static const MenuSnapshot& getMenuState();
+    static const SampleListSnapshot& getSampleList();
 
 private:
     static void applyPadConfig(uint8_t padId, const JsonVariantConst& source);

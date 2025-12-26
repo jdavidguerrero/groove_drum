@@ -139,12 +139,10 @@ bool configurePins() {
 // ============================================================
 
 bool configureUART() {
-    // UART1 (Serial1): MIDI output at 31250 baud
-    // RX disabled (-1), TX on GPIO 17
-    Serial1.begin(MIDI_BAUD, SERIAL_8N1, -1, MIDI_TX_PIN);
+    // MIDI is handled via USB (TinyUSB), no hardware UART needed for MIDI
 
     // UART2 (Serial2): Communication to MCU#2 at 921600 baud
-    // RX on GPIO 44, TX on GPIO 43
+    // TX on GPIO 2, RX on GPIO 1
     Serial2.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
 
     return true;
@@ -240,7 +238,7 @@ void printSystemInfo() {
     Serial.printf("  Encoders Clock: GPIO %d\n", LED_ENC_CLK_PIN);
 
     Serial.println("\nCommunication:");
-    Serial.printf("  MIDI TX:  GPIO %d @ %d baud\n", MIDI_TX_PIN, MIDI_BAUD);
+    Serial.println("  MIDI: USB (TinyUSB)");
     Serial.printf("  UART TX:  GPIO %d @ %d baud\n", UART_TX_PIN, UART_BAUD);
     Serial.printf("  UART RX:  GPIO %d\n", UART_RX_PIN);
 

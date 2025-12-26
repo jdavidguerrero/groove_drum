@@ -2,7 +2,11 @@
 #define AUDIO_SAMPLES_H
 
 #include <Arduino.h>
+
+// SD.h only needed when not using embedded samples
+#ifndef USE_EMBEDDED_SAMPLES
 #include <SD.h>
+#endif
 
 struct Sample {
     int16_t* data = nullptr;   // PCM signed 16-bit
@@ -13,7 +17,7 @@ struct Sample {
 
 namespace SampleManager {
 
-// Inicializa SD (SPI) y carga un conjunto por defecto en PSRAM.
+// Inicializa samples (embebidos o desde SD) y los carga.
 // @return número de samples cargados correctamente.
 size_t beginAndLoadDefaults();
 
@@ -23,8 +27,13 @@ const Sample* getSample(const char* name);
 // Cantidad de samples actualmente cargados
 size_t loadedCount();
 
-// Reproduce un sample cargado, escalando por velocity/volume (bloqueante).
-bool playSample(const char* name, uint8_t velocity, uint8_t volume);
+// Carga o recarga un sample específico desde SD
+// @param path Ruta del archivo WAV en SD
+// @return true si se cargó correctamente
+bool loadSample(const char* path);
+
+// Descarga un sample de memoria
+void unloadSample(const char* path);
 
 } // namespace SampleManager
 

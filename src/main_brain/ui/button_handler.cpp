@@ -9,9 +9,9 @@ namespace ButtonHandler {
 static ButtonState buttons[NUM_BUTTONS];
 static bool buttonsEnabled[NUM_BUTTONS];
 
-// Pin mapping
-static const uint8_t buttonPins[NUM_BUTTONS] = {
-    BTN_KIT_PIN,
+// Pin mapping (int8_t to allow -1 for disabled pins)
+static const int8_t buttonPins[NUM_BUTTONS] = {
+    BTN_KIT_PIN,      // May be -1 if disabled
     BTN_EDIT_PIN,
     BTN_MENU_PIN,
     BTN_CLICK_PIN,
@@ -42,6 +42,12 @@ void begin() {
         buttons[i].clickCount = 0;
         buttons[i].longPressTriggered = false;
         buttons[i].repeatTriggered = false;
+
+        // Skip disabled pins (marked as -1)
+        if (buttonPins[i] < 0) {
+            buttonsEnabled[i] = false;
+            continue;
+        }
 
         buttonsEnabled[i] = true;
 

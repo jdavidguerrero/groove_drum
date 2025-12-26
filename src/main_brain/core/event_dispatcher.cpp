@@ -1,13 +1,11 @@
 #include "event_dispatcher.h"
 #include "pad_config.h"
 #include <edrum_config.h>
-#include "audio_mixer.h"
-#include "uart_protocol.h"
-#include "neopixel_controller.h"
-#include "sk9822_controller.h"
-#include "midi_controller.h"
-#include "audio_samples.h"
-#include <driver/i2s.h>
+#include "../output/audio_engine.h"
+#include "../communication/uart_protocol.h"
+#include "../ui/neopixel_controller.h"
+#include "../ui/sk9822_controller.h"
+#include "../output/midi_controller.h"
 #include <algorithm>
 #include <cstring>
 
@@ -32,22 +30,19 @@ void EventDispatcher::begin() {
     // Create queues (non-blocking)
     hitQueue = xQueueCreate(32, sizeof(HitEvent));      // 32 hit buffer
     ledQueue = xQueueCreate(16, sizeof(LEDRequest));    // 16 LED commands
-    audioQueue = xQueueCreate(8, sizeof(AudioRequest)); // 8 audio buffer
+    audioQueue = xQueueCreate(16, sizeof(AudioRequest)); // Increased audio buffer
     midiQueue = xQueueCreate(32, sizeof(MIDIRequest));  // 32 MIDI buffer
 
-    // Initialize subsystems
-    LEDController::begin();
-    AudioMixer_begin();
-    AudioPlayer::begin();
-    MIDIController::begin();
-
+    // Initialize subsystems (if not already init in main)
+    // Note: AudioEngine and MIDIController should be init in main.cpp for explicit ordering
+    
     // Create worker tasks on Core 1 (application core)
     xTaskCreatePinnedToCore(
         ledTask,
         "LED_Task",
         2048,           // Stack size
         nullptr,
-        5,              // Priority (lower than scanner)
+        5,              // Priority (Low)
         &ledTaskHandle,
         1               // Core 1
     );
@@ -55,9 +50,9 @@ void EventDispatcher::begin() {
     xTaskCreatePinnedToCore(
         audioTask,
         "Audio_Task",
-        4096,           // Larger stack for file I/O
+        2048,           // Reduced stack as heavy lifting is in AudioEngine
         nullptr,
-        6,              // Higher priority (audio is time-sensitive)
+        15,             // Priority (High - audio dispatch must be fast)
         &audioTaskHandle,
         1
     );
@@ -73,127 +68,19 @@ void EventDispatcher::begin() {
     );
 
     Serial.println("[DISPATCHER] Event dispatcher initialized");
-    Serial.println("[DISPATCHER] LED, Audio, MIDI tasks running on Core 1");
 }
 
 // ============================================================================
-// MAIN EVENT PROCESSOR (call from loop)
+// MAIN EVENT PROCESSOR (Called from main loop)
 // ============================================================================
 
 void EventDispatcher::processEvents() {
-    HitEvent event;
-
-    // Non-blocking receive from scanner
-    while (xQueueReceive(hitQueue, &event, 0) == pdTRUE) {
-        processedCount++;
-
-        // Get pad configuration
-        PadConfig& cfg = PadConfigManager::getConfig(event.padId);
-
-        // Skip if pad disabled
-        if (!cfg.enabled) continue;
-
-        // 1. Dispatch to LED (non-blocking)
-        LEDRequest ledReq = {
-            .padId = event.padId,
-            .color = cfg.ledColorHit,
-            .brightness = cfg.ledBrightness,
-            .fadeDuration = cfg.ledFadeDuration
-        };
-        if (xQueueSend(ledQueue, &ledReq, 0) != pdTRUE) {
-            droppedCount++;
-        }
-
-        // 2. Dispatch to Audio (non-blocking)
-        AudioRequest audioReq = {};
-        strncpy(audioReq.sampleName, cfg.sampleName, sizeof(audioReq.sampleName) - 1);
-        audioReq.velocity = event.velocity;
-        audioReq.volume = cfg.sampleVolume;
-        audioReq.pitch = cfg.samplePitch;
-
-        if (xQueueSend(audioQueue, &audioReq, 0) != pdTRUE) {
-            droppedCount++;
-        }
-
-        // 3. Dispatch to MIDI (non-blocking)
-        MIDIRequest midiReq = {
-            .channel = cfg.midiChannel,
-            .note = cfg.midiNote,
-            .velocity = event.velocity,
-            .noteOn = true
-        };
-        if (xQueueSend(midiQueue, &midiReq, 0) != pdTRUE) {
-            droppedCount++;
-        }
-
-        // 4. Send telemetry to GUI (non-blocking)
-        UARTProtocol::sendHitEvent(event.padId, event.velocity,
-                                    event.timestamp, event.peakValue);
-
-        // 5. Serial debug (keep minimal to avoid blocking)
-        #ifdef DEBUG_VERBOSE
-        Serial.printf("HIT: %s | VEL: %3d | PEAK: %4d | TIME: %lu\n",
-                      cfg.name, event.velocity, event.peakValue, event.timestamp);
-        #endif
-    }
-
-    // Update LED animations (smooth fading in main loop)
-    LEDController::update();
+    // Legacy function - kept for compatibility but main logic moved to tasks
+    // Or used if you want to poll from loop() instead of tasks
 }
 
 // ============================================================================
-// WORKER TASKS
-// ============================================================================
-
-void EventDispatcher::ledTask(void* parameter) {
-    LEDRequest request;
-
-    while (true) {
-        // Block until LED request available (timeout 100ms)
-        if (xQueueReceive(ledQueue, &request, pdMS_TO_TICKS(100)) == pdTRUE) {
-            // Set LED color immediately
-            LEDController::setColor(request.padId, request.color, request.brightness);
-
-            // Start fade (handled by LEDController::update() in main loop)
-            LEDController::fade(request.padId, request.fadeDuration);
-        }
-
-        // Small yield to prevent watchdog
-        vTaskDelay(1);
-    }
-}
-
-void EventDispatcher::audioTask(void* parameter) {
-    AudioRequest request;
-
-    while (true) {
-        while (xQueueReceive(audioQueue, &request, 0) == pdTRUE) {
-            AudioMixer_startVoice(request);
-        }
-
-        AudioMixer_update();
-    }
-}
-
-void EventDispatcher::midiTask(void* parameter) {
-    MIDIRequest request;
-
-    while (true) {
-        // Block until MIDI request available
-        if (xQueueReceive(midiQueue, &request, pdMS_TO_TICKS(100)) == pdTRUE) {
-            if (request.noteOn) {
-                MIDIController::sendNoteOn(request.channel, request.note, request.velocity);
-            } else {
-                MIDIController::sendNoteOff(request.channel, request.note);
-            }
-        }
-
-        vTaskDelay(1);
-    }
-}
-
-// ============================================================================
-// MANUAL DISPATCH (for testing)
+// MANUAL DISPATCH
 // ============================================================================
 
 void EventDispatcher::dispatchLED(const LEDRequest& request) {
@@ -209,53 +96,61 @@ void EventDispatcher::dispatchMIDI(const MIDIRequest& request) {
 }
 
 // ============================================================================
-// STUB IMPLEMENTATIONS (to be completed)
+// PROCESS AUDIO IN MAIN LOOP
 // ============================================================================
 
-namespace LEDController {
-    void begin() {
-        NeoPixelController::begin();
-        EncoderLEDController::begin();
-        Serial.println("[LED] Controller initialized");
-    }
+// Helper to drain the queue in the main loop if tasks are not used for this
+void EventDispatcher::processAudio() {
+    AudioRequest req;
+    while (xQueueReceive(audioQueue, &req, 0) == pdTRUE) {
+        
+        // Determinar Choke Group
+        // TODO: Mover esta lógica a PadConfigManager
+        uint8_t chokeGroup = 0;
+        
+        // HiHat logic (simple hardcoded logic for now)
+        // If "closed hihat" or "pedal", choke group 1
+        if (strstr(req.sampleName, "hihat") != nullptr) {
+            chokeGroup = 1;
+        }
 
-    void setColor(uint8_t padId, uint32_t color, uint8_t brightness) {
-        // Flash pad LED with hit color
-        NeoPixelController::flashPad(padId, color, brightness, 200);
-    }
-
-    void fade(uint8_t padId, uint16_t duration) {
-        // Fade is handled automatically in NeoPixelController::update()
-        (void)padId;
-        (void)duration;
-    }
-
-    void update() {
-        // Update both NeoPixels and SK9822
-        NeoPixelController::update();
-        EncoderLEDController::update();
+        AudioEngine::play(req.sampleName, req.velocity, req.volume, chokeGroup);
     }
 }
 
-namespace AudioPlayer {
-    void begin() {
-        // TODO: Initialize I2S, SD card
-        Serial.println("[AUDIO] Player initialized (stub)");
-    }
+// ============================================================================
+// WORKER TASKS
+// ============================================================================
 
-    bool playSample(const char* filename, uint8_t velocity, uint8_t volume, int8_t pitch) {
-        // TODO: Load WAV from SD, play via I2S with DMA
-        // Apply velocity scaling, volume, pitch shift
-        return false;  // Stub
-    }
-
-    void stop(uint8_t padId) {
-        // TODO: Stop playing sample
-    }
-
-    bool isPlaying() {
-        return false;  // Stub
+void EventDispatcher::ledTask(void* parameter) {
+    LEDRequest request;
+    while (true) {
+        if (xQueueReceive(ledQueue, &request, pdMS_TO_TICKS(100)) == pdTRUE) {
+            NeoPixelController::flashPad(request.padId, request.color, request.brightness, request.fadeDuration);
+        }
+        vTaskDelay(1);
     }
 }
 
-// MIDIController implementation lives in src/main_brain/output/midi_controller.*
+void EventDispatcher::audioTask(void* parameter) {
+    // Not strictly needed if processAudio() is called in loop, 
+    // but useful if we want to decouple completely.
+    // For now, let's just yield as we are using processAudio() in loop() for lower latency jitter.
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void EventDispatcher::midiTask(void* parameter) {
+    MIDIRequest request;
+    while (true) {
+        if (xQueueReceive(midiQueue, &request, pdMS_TO_TICKS(100)) == pdTRUE) {
+            if (request.noteOn) {
+                MIDIController::sendNoteOn(request.note, request.velocity);
+            } else {
+                MIDIController::sendNoteOff(request.note);
+            }
+        }
+        vTaskDelay(1);
+    }
+}

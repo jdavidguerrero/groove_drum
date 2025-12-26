@@ -216,6 +216,27 @@ void UARTLink::handleMessage(uint8_t msgType, const uint8_t* payload, uint16_t l
             }
             break;
 
+        case MSG_MENU_STATE:
+            if (length == sizeof(MenuStateMsg)) {
+                const MenuStateMsg* menu = reinterpret_cast<const MenuStateMsg*>(payload);
+                LinkState::updateMenuState(*menu);
+                ui::UIManager::instance().onMenuState(*menu);
+                Serial.printf("[UART] Menu state: %d, pad: %s, opt: %s\n",
+                              menu->state, menu->padName, menu->optionName);
+            }
+            break;
+
+        case MSG_MENU_SAMPLES:
+            if (length == sizeof(SampleListMsg)) {
+                const SampleListMsg* samples = reinterpret_cast<const SampleListMsg*>(payload);
+                LinkState::updateSampleList(*samples);
+                ui::UIManager::instance().onSampleList(*samples);
+                Serial.printf("[UART] Sample list: %d samples, showing %d-%d\n",
+                              samples->totalCount, samples->startIndex,
+                              samples->startIndex + samples->count - 1);
+            }
+            break;
+
         default:
             Serial.printf("[UART] Unhandled message 0x%02X (len=%u)\n", msgType, length);
             break;

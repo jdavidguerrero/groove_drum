@@ -7,8 +7,12 @@ namespace {
 std::array<PadTelemetry, NUM_PADS> padTelemetry{};
 std::array<PadConfigSnapshot, NUM_PADS> padConfigs{};
 SystemTelemetry systemTelemetry{};
+MenuSnapshot menuState{};
+SampleListSnapshot sampleList{};
 PadTelemetry padFallback{};
 PadConfigSnapshot configFallback{};
+MenuSnapshot menuFallback{};
+SampleListSnapshot sampleListFallback{};
 bool initialized = false;
 
 void copyString(char* dest, size_t len, const char* src) {
@@ -169,6 +173,43 @@ const PadConfigSnapshot& LinkState::getPadConfig(uint8_t padId) {
         return configFallback;
     }
     return padConfigs[padId];
+}
+
+void LinkState::updateMenuState(const MenuStateMsg& msg) {
+    ensureInit();
+    menuState.state = msg.state;
+    menuState.selectedPad = msg.selectedPad;
+    menuState.selectedOption = msg.selectedOption;
+    menuState.editing = msg.editing != 0;
+    menuState.hasChanges = msg.hasChanges != 0;
+    menuState.currentValue = msg.currentValue;
+    copyString(menuState.padName, sizeof(menuState.padName), msg.padName);
+    copyString(menuState.optionName, sizeof(menuState.optionName), msg.optionName);
+    copyString(menuState.sampleName, sizeof(menuState.sampleName), msg.sampleName);
+    menuState.lastUpdateMs = millis();
+    menuState.valid = true;
+}
+
+void LinkState::updateSampleList(const SampleListMsg& msg) {
+    ensureInit();
+    sampleList.totalCount = msg.totalCount;
+    sampleList.startIndex = msg.startIndex;
+    sampleList.count = msg.count;
+    for (uint8_t i = 0; i < 4 && i < msg.count; i++) {
+        sampleList.samples[i] = msg.samples[i];
+    }
+    sampleList.lastUpdateMs = millis();
+    sampleList.valid = true;
+}
+
+const MenuSnapshot& LinkState::getMenuState() {
+    ensureInit();
+    return menuState.valid ? menuState : menuFallback;
+}
+
+const SampleListSnapshot& LinkState::getSampleList() {
+    ensureInit();
+    return sampleList.valid ? sampleList : sampleListFallback;
 }
 
 }  // namespace display::comm

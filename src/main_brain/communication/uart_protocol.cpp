@@ -109,6 +109,18 @@ void UARTProtocol::sendNack(uint8_t cmdType, const char* error) {
     sendMessage(MSG_NACK, buffer, strlen((char*)buffer) + 1);
 }
 
+void UARTProtocol::sendRawCommand(uint8_t cmdType, const uint8_t* data, uint16_t length) {
+    sendMessage(cmdType, data, length);
+}
+
+void UARTProtocol::sendMenuState(const MenuStateMsg& msg) {
+    sendMessage(MSG_MENU_STATE, &msg, sizeof(msg));
+}
+
+void UARTProtocol::sendSampleList(const SampleListMsg& msg) {
+    sendMessage(MSG_MENU_SAMPLES, &msg, sizeof(msg));
+}
+
 // ============================================================================
 // PROCESS INCOMING MESSAGES FROM GUI
 // ============================================================================

@@ -1,11 +1,13 @@
 #include "audio_samples.h"
-#include "audio_engine.h"
-#include <driver/i2s.h>
 #include <esp_heap_caps.h>
 #include <algorithm>
 #include <vector>
 #include <edrum_config.h>
 #include <cstring>
+#include "pad_config.h"
+
+// Use SD card for samples (requires pull-up resistors on GPIO45/46)
+#define USE_EMBEDDED_SAMPLES 0
 
 namespace {
 
@@ -15,14 +17,6 @@ struct LoadedSample {
 };
 
 std::vector<LoadedSample> loaded;
-
-// Rutas por defecto (puedes cambiar los nombres de archivo en la SD)
-const char* DEFAULT_SAMPLE_PATHS[NUM_PADS] = {
-    SAMPLE_PATH_KICK,
-    SAMPLE_PATH_SNARE,
-    SAMPLE_PATH_HIHAT,
-    SAMPLE_PATH_TOM
-};
 
 uint32_t readLE32(File& f) {
     uint8_t b[4];
@@ -37,6 +31,11 @@ uint16_t readLE16(File& f) {
 }
 
 bool loadWavToPSRAM(const char* path, Sample& out) {
+    if (!SD.exists(path)) {
+        Serial.printf("[SAMPLE] File not found: %s\n", path);
+        return false;
+    }
+
     File f = SD.open(path, FILE_READ);
     if (!f) {
         Serial.printf("[SAMPLE] Cannot open %s\n", path);
@@ -46,12 +45,14 @@ bool loadWavToPSRAM(const char* path, Sample& out) {
     char riff[4];
     if (f.read((uint8_t*)riff, 4) != 4 || strncmp(riff, "RIFF", 4) != 0) {
         Serial.printf("[SAMPLE] %s missing RIFF\n", path);
+        f.close();
         return false;
     }
     f.seek(8); // skip RIFF size
     char wave[4];
     if (f.read((uint8_t*)wave, 4) != 4 || strncmp(wave, "WAVE", 4) != 0) {
         Serial.printf("[SAMPLE] %s not WAVE\n", path);
+        f.close();
         return false;
     }
 
@@ -87,6 +88,7 @@ bool loadWavToPSRAM(const char* path, Sample& out) {
     if (audioFormat != 1 || bitsPerSample != 16 || dataSize == 0) {
         Serial.printf("[SAMPLE] %s unsupported format (fmt=%u bits=%u data=%u)\n",
                       path, audioFormat, bitsPerSample, dataSize);
+        f.close();
         return false;
     }
 
@@ -98,10 +100,13 @@ bool loadWavToPSRAM(const char* path, Sample& out) {
     }
     if (!buf) {
         Serial.printf("[SAMPLE] No memory for %s\n", path);
+        f.close();
         return false;
     }
 
     size_t read = f.read((uint8_t*)buf, bytes);
+    f.close();
+    
     if (read != bytes) {
         Serial.printf("[SAMPLE] Short read %s (%u/%u)\n", path, (unsigned)read, (unsigned)bytes);
         free(buf);
@@ -122,77 +127,93 @@ bool loadWavToPSRAM(const char* path, Sample& out) {
 
 namespace SampleManager {
 
-size_t beginAndLoadDefaults() {
-    SPI.begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
-    if (!SD.begin(SD_CS_PIN, SPI, 25000000)) {
-        Serial.println("[SD] init failed");
-        return 0;
+// Helper: Check if sample is already loaded
+bool isLoaded(const char* name) {
+    for (auto& it : loaded) {
+        if (it.name.equals(name)) return true;
     }
+    return false;
+}
 
-    loaded.clear();
-    for (int i = 0; i < NUM_PADS; ++i) {
-        Sample s;
-        const char* path = DEFAULT_SAMPLE_PATHS[i];
-        if (loadWavToPSRAM(path, s)) {
-            loaded.push_back({String(path), s});
+// Helper: Load a single sample file
+bool loadSample(const char* path) {
+    if (isLoaded(path)) return true; // Already loaded
+
+    Sample s;
+    if (loadWavToPSRAM(path, s)) {
+        loaded.push_back({String(path), s});
+        return true;
+    }
+    return false;
+}
+
+size_t beginAndLoadDefaults() {
+#if USE_EMBEDDED_SAMPLES
+    Serial.println("[SAMPLE] Embedded samples enabled");
+    return 0;
+#else
+    Serial.printf("[SYSTEM] Free Heap: %d, Free PSRAM: %d\n", ESP.getFreeHeap(), ESP.getFreePsram());
+
+    // Asegurar estado inicial de pines SPI
+    pinMode(SD_CS_PIN, OUTPUT);
+    digitalWrite(SD_CS_PIN, HIGH);
+    delay(50);
+
+    // Inicializar SPI explícitamente
+    SPI.begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
+    
+    // Intentar montar SD con frecuencia segura (4MHz)
+    if (!SD.begin(SD_CS_PIN, SPI, 4000000, "/sd")) {
+        Serial.println("[SD] init failed! Retrying with lower frequency...");
+        delay(100);
+        if (!SD.begin(SD_CS_PIN, SPI, 1000000, "/sd")) {
+             Serial.println("[SD] init failed again. Check wiring/card.");
+             return 0;
         }
     }
-    Serial.printf("[SAMPLE] Loaded %u samples\n", (unsigned)loaded.size());
+    Serial.println("[SD] Card initialized.");
+    Serial.printf("[SYSTEM] Post-SD Heap: %d, Free PSRAM: %d\n", ESP.getFreeHeap(), ESP.getFreePsram());
+
+    loaded.clear();
+    
+    // Load samples requested by Pad Configuration
+    Serial.println("[SAMPLE] Loading samples defined in PadConfig...");
+    
+    for (int i = 0; i < NUM_PADS; ++i) {
+        PadConfig& cfg = PadConfigManager::getConfig(i);
+        
+        // Ensure sample name is not empty
+        if (strlen(cfg.sampleName) > 0) {
+            Serial.printf("[SAMPLE] Pad %d needs: %s\n", i, cfg.sampleName);
+            if (!loadSample(cfg.sampleName)) {
+                Serial.printf("[SAMPLE] Failed to load %s for Pad %d\n", cfg.sampleName, i);
+            }
+        }
+        
+        // Also load rim samples if dual zone enabled
+        if (cfg.dualZoneEnabled && strlen(cfg.rimSampleName) > 0) {
+            if (!loadSample(cfg.rimSampleName)) {
+                Serial.printf("[SAMPLE] Failed to load rim %s for Pad %d\n", cfg.rimSampleName, i);
+            }
+        }
+    }
+    
+    Serial.printf("[SAMPLE] Total loaded unique samples: %u\n", (unsigned)loaded.size());
     return loaded.size();
+#endif
 }
+
 
 const Sample* getSample(const char* name) {
     if (!name) return nullptr;
     for (auto& it : loaded) {
-        if (it.name == name) return &it.sample;
+        if (it.name.equals(name)) return &it.sample;
     }
     return nullptr;
 }
 
 size_t loadedCount() {
     return loaded.size();
-}
-
-bool playSample(const char* name, uint8_t velocity, uint8_t volume) {
-    const Sample* s = getSample(name);
-    if (!s || !s->data || s->frames == 0) {
-        return false;
-    }
-
-    // Re-sample: si sampleRate != I2S rate, ignoramos y reproducimos tal cual (pequeño pitch drift).
-    float scale = (velocity / 127.0f) * (volume / 127.0f);
-    if (scale <= 0.0f) scale = 0.01f;
-
-    const uint32_t frames = s->frames;
-    const uint8_t ch = s->channels;
-    const int16_t* src = s->data;
-
-    const size_t chunkFrames = 256;
-    int16_t outBuf[chunkFrames * 2]; // stereo interleaved
-
-    uint32_t pos = 0;
-    while (pos < frames) {
-        uint32_t n = std::min<uint32_t>(chunkFrames, frames - pos);
-        for (uint32_t i = 0; i < n; ++i) {
-            int32_t sample = 0;
-            if (ch == 1) {
-                sample = src[pos + i];
-            } else {
-                // stereo: average L/R para mono
-                sample = (int32_t)src[(pos + i) * 2] + (int32_t)src[(pos + i) * 2 + 1];
-                sample /= 2;
-            }
-            float scaled = (float)sample * scale;
-            int16_t s16 = (int16_t)std::max<float>(-32768.f, std::min<float>(32767.f, scaled));
-            outBuf[2 * i] = s16;
-            outBuf[2 * i + 1] = s16;
-        }
-        size_t bytesToWrite = n * 2 * sizeof(int16_t);
-        size_t written = 0;
-        i2s_write(I2S_NUM_0, outBuf, bytesToWrite, &written, pdMS_TO_TICKS(100));
-        pos += n;
-    }
-    return true;
 }
 
 } // namespace SampleManager

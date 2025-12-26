@@ -42,7 +42,29 @@ enum UARTMessageType : uint8_t {
     CMD_STOP_CALIBRATION = 0x41,
     CMD_GET_SAMPLE_LIST = 0x42,
 
+    // Menu State Messages (Main Brain -> Display)
+    MSG_MENU_STATE = 0x50,       // Current menu state with all data
+    MSG_MENU_SAMPLES = 0x51,     // Sample list for browser
+
     CMD_REBOOT = 0xFF
+};
+
+// Menu states (matches MenuSystem::MenuState)
+enum MenuStateType : uint8_t {
+    MENU_STATE_HIDDEN = 0,       // Normal play mode
+    MENU_STATE_PAD_SELECT = 1,   // Selecting pad
+    MENU_STATE_PAD_CONFIG = 2,   // Configuring pad options
+    MENU_STATE_SAMPLE_BROWSE = 3,// Browsing samples
+    MENU_STATE_SAVING = 4        // Saving config
+};
+
+// Config options (matches MenuSystem::ConfigOption)
+enum MenuConfigOption : uint8_t {
+    MENU_OPT_SAMPLE = 0,
+    MENU_OPT_THRESHOLD = 1,
+    MENU_OPT_SENSITIVITY = 2,
+    MENU_OPT_MAX_PEAK = 3,
+    MENU_OPT_COUNT = 4
 };
 
 #pragma pack(push, 1)
@@ -117,6 +139,35 @@ struct CalibrationDataMsg {
     uint16_t baseline;
     uint16_t noiseFloor;
     uint16_t suggestedThreshold;
+};
+
+// Menu state message - sent from Main Brain to Display
+struct MenuStateMsg {
+    uint8_t state;              // MenuStateType
+    uint8_t selectedPad;        // 0-3
+    uint8_t selectedOption;     // MenuConfigOption
+    uint8_t editing;            // 1 if currently editing value
+    uint8_t hasChanges;         // 1 if unsaved changes exist
+    uint16_t currentValue;      // Current value of selected option
+    char padName[12];           // Name of selected pad
+    char optionName[16];        // Name of selected option
+    char sampleName[32];        // Current sample name (for CONFIG_SAMPLE)
+};
+
+// Sample entry for sample browser
+struct SampleEntryMsg {
+    uint8_t index;              // Index in list
+    uint8_t selected;           // 1 if currently selected
+    char displayName[24];       // Display name (truncated)
+    char path[48];              // Full path on SD
+};
+
+// Sample list message - contains multiple samples
+struct SampleListMsg {
+    uint8_t totalCount;         // Total samples available
+    uint8_t startIndex;         // First sample index in this message
+    uint8_t count;              // Number of samples in this message (max 4)
+    SampleEntryMsg samples[4];  // Up to 4 samples per message
 };
 
 #pragma pack(pop)

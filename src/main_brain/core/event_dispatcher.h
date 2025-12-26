@@ -56,6 +56,9 @@ public:
     static void dispatchAudio(const AudioRequest& request);
     static void dispatchMIDI(const MIDIRequest& request);
 
+    // Process audio queue (call from main loop for low-latency)
+    static void processAudio();
+
     // Statistics
     static uint32_t getProcessedCount() { return processedCount; }
     static uint32_t getDroppedCount() { return droppedCount; }

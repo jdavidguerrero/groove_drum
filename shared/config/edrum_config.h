@@ -47,28 +47,28 @@ extern const char* PAD_NAMES[4];
 #define SAMPLE_PATH_HIHAT  "/samples/default/hihat.wav"
 #define SAMPLE_PATH_TOM    "/samples/default/tom.wav"
 
-// --- MIDI OUTPUT (Hardware Serial 1) ---
-#define MIDI_TX_PIN 9    
-#define MIDI_BAUD   31250
+// --- MIDI OUTPUT ---
+// NOTA: Se usa USB MIDI nativo (TinyUSB), no hardware serial
+#define MIDI_BAUD   31250   // Solo referencia para futuro uso
 
 // Rotary Encoders (ALPS EC11)
 // Left Encoder
-#define ENC_L_A_PIN  1
-#define ENC_L_B_PIN  2
-#define ENC_L_SW_PIN 42   // MTMS
+#define ENC_L_A_PIN  42   // GPIO42 (Pin 39)
+#define ENC_L_B_PIN  41   // GPIO41 (Pin 38)
+#define ENC_L_SW_PIN 9    // GPIO09 (Pin 15)
 
 // Right Encoder
-#define ENC_R_A_PIN  41   // MTDI
-#define ENC_R_B_PIN  40   // MTDO
-#define ENC_R_SW_PIN 39   // MTCK
+#define ENC_R_A_PIN  39   // GPIO39 (Pin 36)
+#define ENC_R_B_PIN  40   // GPIO40 (Pin 37)
+#define ENC_R_SW_PIN -1   // GPIO45 DISABLED - strapping pin
 
 // Buttons
-#define BTN_KIT_PIN   3
-#define BTN_EDIT_PIN  8
-#define BTN_MENU_PIN  14
-#define BTN_CLICK_PIN 15
-#define BTN_FX_PIN    38
-#define BTN_SHIFT_PIN 0
+#define BTN_KIT_PIN  -1   // GPIO46 DISABLED - strapping pin
+#define BTN_EDIT_PIN  8   // GPIO08 (Pin 12)
+#define BTN_MENU_PIN  14  // GPIO14 (Pin 20)
+#define BTN_CLICK_PIN 15  // GPIO15 (Pin 8)
+#define BTN_FX_PIN    38  // GPIO38 (Pin 35)
+#define BTN_SHIFT_PIN -1  // GPIO35 DISABLED - conflicts with PSRAM bus
 
 // LED Outputs
 #define LED_PADS_PIN      48  // WS2812B x4 (one per pad)
@@ -148,11 +148,13 @@ extern const char* PAD_NAMES[4];
 #define MIN_BASELINE_VALUE 50           // Minimum baseline value to prevent collapse to 0
 
 // Legacy trigger parameters (for backward compatibility with old detector code)
-#define TRIGGER_SCAN_TIME_US 2000       // Peak detection window (2ms)
-#define TRIGGER_MASK_TIME_US 10000      // Retrigger suppression (10ms)
-#define TRIGGER_RETRIGGER_THRESHOLD 30  // Signal must drop below this to re-arm
-#define TRIGGER_CROSSTALK_WINDOW_US 50000  // Crosstalk check window (50ms)
-#define TRIGGER_CROSSTALK_RATIO 0.7f    // Velocity ratio for crosstalk rejection
+#define TRIGGER_SCAN_TIME_US 4000       // Peak detection window (4ms) - Increased to capture full wave
+#define TRIGGER_MASK_TIME_US 35000      // Retrigger suppression (35ms) - Increased to prevent double hits
+#define TRIGGER_RETRIGGER_THRESHOLD 100 // Signal must drop below this to re-arm (Increased for safety)
+#define TRIGGER_CROSSTALK_WINDOW_US 120000  // Crosstalk check window (120ms) - very aggressive
+#define TRIGGER_CROSSTALK_RATIO 0.3f    // Velocity ratio for crosstalk rejection (0.3 = reject if < 30%)
+#define TRIGGER_CROSSTALK_THRESHOLD_BOOST 400  // Temporary threshold increase after hit on other pad
+#define TRIGGER_CROSSTALK_MASK_EXTENSION_US 15000  // Extra mask time when crosstalk detected (15ms)
 #define VELOCITY_CURVE_EXPONENT 0.5f    // Velocity curve exponent (sqrt)
 
 // DEPRECATED: Legacy arrays below are kept for backward compatibility only

@@ -9,11 +9,11 @@ namespace EncoderHandler {
 
 static EncoderState encoders[NUM_ENCODERS];
 
-// Pin definitions per encoder
+// Pin definitions per encoder (int8_t for SW to allow -1 for disabled)
 struct EncoderPins {
     uint8_t pinA;
     uint8_t pinB;
-    uint8_t pinSW;
+    int8_t pinSW;  // -1 means disabled
 };
 
 static const EncoderPins encoderPins[NUM_ENCODERS] = {
@@ -52,7 +52,11 @@ void begin() {
         // Configure pins
         pinMode(encoderPins[i].pinA, INPUT_PULLUP);
         pinMode(encoderPins[i].pinB, INPUT_PULLUP);
-        pinMode(encoderPins[i].pinSW, INPUT_PULLUP);
+
+        // Only configure switch if not disabled
+        if (encoderPins[i].pinSW >= 0) {
+            pinMode(encoderPins[i].pinSW, INPUT_PULLUP);
+        }
 
         // Read initial state
         bool stateA = digitalRead(encoderPins[i].pinA);
@@ -101,7 +105,9 @@ void update() {
             enc.lastAB = newAB;
         }
 
-        // 2. READ SWITCH with debounce
+        // 2. READ SWITCH with debounce (skip if disabled)
+        if (pins.pinSW < 0) continue;
+
         bool switchReading = !digitalRead(pins.pinSW);  // Active LOW
 
         if (switchReading && !enc.switchPressed) {

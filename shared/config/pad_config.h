@@ -85,7 +85,7 @@ inline PadConfig makeKickConfig() {
     cfg.rimThreshold = 0;
     cfg.rimMidiNote = 0;
     cfg.rimSampleName[0] = '\0';
-    std::strncpy(cfg.name, "Kick", sizeof(cfg.name));
+    std::strncpy(cfg.name, "PAD1", sizeof(cfg.name));
     cfg.name[sizeof(cfg.name) - 1] = '\0';
     cfg.padType = 0;
     cfg.enabled = true;
@@ -120,7 +120,7 @@ inline PadConfig makeSnareConfig() {
     cfg.rimMidiNote = 40;
     std::strncpy(cfg.rimSampleName, "snare_rim_001.wav", sizeof(cfg.rimSampleName));
     cfg.rimSampleName[sizeof(cfg.rimSampleName) - 1] = '\0';
-    std::strncpy(cfg.name, "Snare", sizeof(cfg.name));
+    std::strncpy(cfg.name, "PAD2", sizeof(cfg.name));
     cfg.name[sizeof(cfg.name) - 1] = '\0';
     cfg.padType = 1;
     cfg.enabled = true;
@@ -155,7 +155,7 @@ inline PadConfig makeHiHatConfig() {
     cfg.rimMidiNote = 46;
     std::strncpy(cfg.rimSampleName, "hihat_open_001.wav", sizeof(cfg.rimSampleName));
     cfg.rimSampleName[sizeof(cfg.rimSampleName) - 1] = '\0';
-    std::strncpy(cfg.name, "HiHat", sizeof(cfg.name));
+    std::strncpy(cfg.name, "PAD3", sizeof(cfg.name));
     cfg.name[sizeof(cfg.name) - 1] = '\0';
     cfg.padType = 4;
     cfg.enabled = true;
@@ -189,7 +189,7 @@ inline PadConfig makeTomConfig() {
     cfg.rimThreshold = 0;
     cfg.rimMidiNote = 0;
     cfg.rimSampleName[0] = '\0';
-    std::strncpy(cfg.name, "Tom", sizeof(cfg.name));
+    std::strncpy(cfg.name, "PAD4", sizeof(cfg.name));
     cfg.name[sizeof(cfg.name) - 1] = '\0';
     cfg.padType = 2;
     cfg.enabled = true;

@@ -65,15 +65,54 @@ void TriggerDetector::processSample(uint8_t padId, uint16_t rawValue, uint32_t t
             // Waiting for threshold crossing (per-pad threshold)
             uint16_t threshold = TRIGGER_THRESHOLD_PER_PAD[padId];
 
-            if (signal > threshold) {
-                // Threshold crossed - enter RISING state
+            // CROSSTALK SUPPRESSION: If another pad hit recently OR is currently active, boost threshold
+            uint16_t dynamicThreshold = threshold;
+            bool otherPadActive = false;
+
+            for (uint8_t otherPad = 0; otherPad < NUM_PADS; otherPad++) {
+                if (otherPad == padId) continue;
+
+                PadState& other = padStates[otherPad];
+
+                // Check if other pad is currently in RISING or DECAY state
+                if (other.state == STATE_RISING || other.state == STATE_DECAY) {
+                    otherPadActive = true;
+                    // Maximum boost when another pad is actively detecting
+                    dynamicThreshold = threshold + TRIGGER_CROSSTALK_THRESHOLD_BOOST;
+                }
+
+                // Also check recent hits
+                uint32_t timeSinceOtherHit = timestamp - other.lastHitTime;
+                if (timeSinceOtherHit < TRIGGER_CROSSTALK_WINDOW_US) {
+                    // Another pad hit recently - boost threshold proportionally
+                    // More recent = more boost, decays exponentially over the window
+                    float decayFactor = 1.0f - ((float)timeSinceOtherHit / TRIGGER_CROSSTALK_WINDOW_US);
+                    decayFactor = decayFactor * decayFactor;  // Exponential decay (slower)
+                    uint16_t boost = (uint16_t)(TRIGGER_CROSSTALK_THRESHOLD_BOOST * decayFactor);
+                    if (dynamicThreshold < threshold + boost) {
+                        dynamicThreshold = threshold + boost;
+                    }
+                }
+            }
+
+            if (signal > dynamicThreshold) {
+                // Threshold crossed - but do one more crosstalk check before entering RISING
+                if (otherPadActive) {
+                    // Another pad is active - only allow if signal is very strong
+                    if (signal < dynamicThreshold + 200) {
+                        // Signal not strong enough while other pad active - ignore
+                        break;
+                    }
+                }
+
+                // Enter RISING state
                 pad.state = STATE_RISING;
                 pad.peakValue = signal;
                 pad.risingStartTime = timestamp;
 
                 #ifdef DEBUG_TRIGGER_EVENTS
-                Serial.printf("[Pad %d] Threshold crossed: signal=%d (threshold=%d)\n",
-                              padId, signal, threshold);
+                Serial.printf("[Pad %d] Threshold crossed: signal=%d (threshold=%d, dynamic=%d)\n",
+                              padId, signal, threshold, dynamicThreshold);
                 #endif
             }
             break;
@@ -100,8 +139,51 @@ void TriggerDetector::processSample(uint8_t padId, uint16_t rawValue, uint32_t t
                 // Convert peak to MIDI velocity
                 uint8_t velocity = peakToVelocity(pad.peakValue, padId);
 
-                // Crosstalk rejection
-                if (isCrosstalk(padId, timestamp, velocity)) {
+                // AGGRESSIVE CROSSTALK CHECK: Multiple conditions
+                bool rejected = false;
+
+                for (uint8_t otherPad = 0; otherPad < NUM_PADS; otherPad++) {
+                    if (otherPad == padId) continue;
+                    PadState& other = padStates[otherPad];
+
+                    // 1. If other pad is also rising - compare peaks
+                    if (other.state == STATE_RISING) {
+                        if (pad.peakValue < other.peakValue * TRIGGER_CROSSTALK_RATIO) {
+                            rejected = true;
+                            break;
+                        }
+                    }
+
+                    // 2. If other pad just peaked (within 20ms) - compare peaks
+                    if (other.state == STATE_DECAY) {
+                        uint32_t timeSincePeak = timestamp - other.peakTime;
+                        if (timeSincePeak < 20000) {  // 20ms window
+                            if (pad.peakValue < other.peakValue * TRIGGER_CROSSTALK_RATIO) {
+                                rejected = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 3. If other pad hit recently - check velocity ratio
+                    uint32_t timeSinceHit = timestamp - other.lastHitTime;
+                    if (timeSinceHit < TRIGGER_CROSSTALK_WINDOW_US && other.lastVelocity > 0) {
+                        // More aggressive ratio for recent hits
+                        float adjustedRatio = TRIGGER_CROSSTALK_RATIO;
+                        if (timeSinceHit < 30000) {  // Very recent (30ms)
+                            adjustedRatio = 0.2f;  // Ultra aggressive - reject if < 20%
+                        } else if (timeSinceHit < 60000) {  // Recent (60ms)
+                            adjustedRatio = 0.25f;  // Very aggressive
+                        }
+
+                        if (velocity < other.lastVelocity * adjustedRatio) {
+                            rejected = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (rejected) {
                     #ifdef DEBUG_TRIGGER_EVENTS
                     Serial.printf("[Pad %d] REJECTED (crosstalk): peak=%d, vel=%d\n",
                                   padId, pad.peakValue, velocity);

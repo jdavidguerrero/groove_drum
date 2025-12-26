@@ -64,31 +64,14 @@ void setup() {
     Serial.println("      TFT initialized");
     delay(100);
 
-    // Step 3: Color test pattern
-    Serial.println("[3/6] Testing display colors...");
-    tft.fillScreen(TFT_RED);
-    Serial.println("      RED");
-    delay(500);
-
-    tft.fillScreen(TFT_GREEN);
-    Serial.println("      GREEN");
-    delay(500);
-
-    tft.fillScreen(TFT_BLUE);
-    Serial.println("      BLUE");
-    delay(500);
-
+    // Step 3: LVGL init
+    Serial.println("[3/6] Initializing LVGL 8.4.0...");
     tft.fillScreen(TFT_BLACK);
-    Serial.println("      BLACK");
-    delay(200);
-
-    // Step 4: LVGL init
-    Serial.println("[4/6] Initializing LVGL 8.4.0...");
     lv_init();
     Serial.println("      lv_init() done");
 
-    // Step 5: LVGL display driver
-    Serial.println("[5/6] Configuring LVGL display driver...");
+    // Step 4: LVGL display driver
+    Serial.println("[4/6] Configuring LVGL display driver...");
     lv_disp_draw_buf_init(&draw_buf, buf1, nullptr, kScreenWidth * 60);
     lv_disp_drv_init(&disp_drv);
     disp_drv.hor_res = kScreenWidth;
@@ -98,25 +81,99 @@ void setup() {
     lv_disp_drv_register(&disp_drv);
     Serial.println("      Display driver registered");
 
-    // Step 6: Test LVGL with simple label
-    Serial.println("[6/6] Creating test label...");
-    lv_obj_t* label = lv_label_create(lv_scr_act());
-    lv_label_set_text(label, "LVGL OK!");
-    lv_obj_center(label);
-    Serial.println("      Test label created");
+    // Step 5: Create splash screen with loading animation
+    Serial.println("[5/6] Creating splash screen...");
 
-    // Give LVGL time to render
-    for (int i = 0; i < 5; i++) {
+    lv_obj_t* splashScreen = lv_scr_act();
+    lv_obj_set_style_bg_color(splashScreen, lv_color_hex(0x0D0D0D), LV_PART_MAIN);
+
+    // Brand name - "GROOVE FORGE"
+    lv_obj_t* brandLabel = lv_label_create(splashScreen);
+    lv_label_set_text(brandLabel, "GROOVE FORGE");
+    lv_obj_set_style_text_color(brandLabel, lv_color_hex(0xFF6600), LV_PART_MAIN);
+    lv_obj_set_style_text_font(brandLabel, &lv_font_montserrat_20, LV_PART_MAIN);
+    lv_obj_align(brandLabel, LV_ALIGN_CENTER, 0, -40);
+
+    // Product name - "E-DRUM"
+    lv_obj_t* productLabel = lv_label_create(splashScreen);
+    lv_label_set_text(productLabel, "E-DRUM");
+    lv_obj_set_style_text_color(productLabel, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_text_font(productLabel, &lv_font_montserrat_16, LV_PART_MAIN);
+    lv_obj_align(productLabel, LV_ALIGN_CENTER, 0, -10);
+
+    // Loading bar background
+    lv_obj_t* barBg = lv_obj_create(splashScreen);
+    lv_obj_set_size(barBg, 160, 8);
+    lv_obj_align(barBg, LV_ALIGN_CENTER, 0, 40);
+    lv_obj_set_style_bg_color(barBg, lv_color_hex(0x333333), LV_PART_MAIN);
+    lv_obj_set_style_radius(barBg, 4, LV_PART_MAIN);
+    lv_obj_set_style_border_width(barBg, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(barBg, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(barBg, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Loading bar fill
+    lv_obj_t* barFill = lv_obj_create(barBg);
+    lv_obj_set_size(barFill, 0, 8);
+    lv_obj_align(barFill, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_style_bg_color(barFill, lv_color_hex(0xFF6600), LV_PART_MAIN);
+    lv_obj_set_style_radius(barFill, 4, LV_PART_MAIN);
+    lv_obj_set_style_border_width(barFill, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(barFill, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Status text
+    lv_obj_t* statusLabel = lv_label_create(splashScreen);
+    lv_label_set_text(statusLabel, "Initializing...");
+    lv_obj_set_style_text_color(statusLabel, lv_color_hex(0x888888), LV_PART_MAIN);
+    lv_obj_set_style_text_font(statusLabel, &lv_font_montserrat_12, LV_PART_MAIN);
+    lv_obj_align(statusLabel, LV_ALIGN_CENTER, 0, 60);
+
+    // Version info
+    lv_obj_t* versionLabel = lv_label_create(splashScreen);
+    lv_label_set_text(versionLabel, "v1.0");
+    lv_obj_set_style_text_color(versionLabel, lv_color_hex(0x444444), LV_PART_MAIN);
+    lv_obj_set_style_text_font(versionLabel, &lv_font_montserrat_12, LV_PART_MAIN);
+    lv_obj_align(versionLabel, LV_ALIGN_BOTTOM_MID, 0, -15);
+
+    // Animate loading bar (~5 seconds total)
+    const char* loadingSteps[] = {
+        "Initializing...",
+        "Loading drivers...",
+        "Connecting UART...",
+        "Loading UI...",
+        "Ready!"
+    };
+
+    // First render to show initial state
+    lv_timer_handler();
+    lv_tick_inc(5);
+    delay(100);
+
+    // 50 steps, ~100ms each = 5 seconds total
+    for (int i = 0; i <= 50; i++) {
+        int percent = (i * 100) / 50;
+        int barWidth = (percent * 160) / 100;
+        lv_obj_set_width(barFill, barWidth);
+
+        // Update status text at key points (every 20%)
+        int stepIndex = percent / 20;
+        if (stepIndex > 4) stepIndex = 4;
+        lv_label_set_text(statusLabel, loadingSteps[stepIndex]);
+
+        // Force LVGL to process and render
+        lv_tick_inc(100);
         lv_timer_handler();
-        delay(50);
+        delay(100);
     }
 
+    // Hold on "Ready!" briefly
+    lv_tick_inc(500);
+    lv_timer_handler();
+    delay(500);
+
+    Serial.println("[6/6] Splash complete");
     Serial.println("\n=================================");
     Serial.println("=== BOOT SUCCESSFUL ===");
     Serial.println("=================================\n");
-
-    // Wait 2 seconds to see the test label
-    delay(2000);
 
     // Now load UI Manager
     Serial.println("Initializing UI Manager...");

@@ -24,6 +24,13 @@ public:
     static void sendAck(uint8_t cmdType);
     static void sendNack(uint8_t cmdType, const char* error);
 
+    // Send raw command for menu display
+    static void sendRawCommand(uint8_t cmdType, const uint8_t* data, uint16_t length);
+
+    // Send menu state to display
+    static void sendMenuState(const MenuStateMsg& msg);
+    static void sendSampleList(const SampleListMsg& msg);
+
     // Process incoming messages from GUI
     static void processIncoming();
 
